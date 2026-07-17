@@ -118,7 +118,32 @@ interface StaticSnapshot {
   termStructureMatrix: TermStructureMatrix
 }
 
+export interface CrapsAccount {
+  id: number
+  accountName: string
+  starred: number
+}
+
+export interface CrapsArticle {
+  articleId: number
+  title: string
+  url: string
+  publishTime: string | null
+  accountId: number | null
+  accountName: string
+}
+
+export interface CrapsSnapshot {
+  meta: {
+    generatedAt: string
+    total: number
+  }
+  accounts: CrapsAccount[]
+  articles: CrapsArticle[]
+}
+
 let snapshotPromise: Promise<StaticSnapshot> | null = null
+let crapsPromise: Promise<CrapsSnapshot> | null = null
 const spreadPromises = new Map<string, Promise<Record<SpreadPriceMode, SpreadSeasonalResponse>>>()
 
 function loadSnapshot(): Promise<StaticSnapshot> {
@@ -144,6 +169,17 @@ function loadSpreads(variety: string): Promise<Record<SpreadPriceMode, SpreadSea
     spreadPromises.set(key, promise)
   }
   return promise
+}
+
+function loadCraps(): Promise<CrapsSnapshot> {
+  if (!crapsPromise) {
+    const url = `${import.meta.env.BASE_URL}data/craps.json`
+    crapsPromise = fetch(url).then(async response => {
+      if (!response.ok) throw new Error(`Craps 静态索引加载失败 (${response.status})`)
+      return response.json() as Promise<CrapsSnapshot>
+    })
+  }
+  return crapsPromise
 }
 
 function varietyFromCode(code: string): string {
@@ -176,6 +212,7 @@ function findContract(snapshot: StaticSnapshot, code: string): KLineEntry | unde
 
 export const api = {
   meta: async () => (await loadSnapshot()).meta,
+  craps: loadCraps,
   commodityConfig: async () => (await loadSnapshot()).commodityConfig,
   termStructureMatrix: async () => (await loadSnapshot()).termStructureMatrix,
   termStructure: async (variety: string): Promise<TermStructureSingle> => {

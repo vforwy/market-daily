@@ -53,6 +53,52 @@ def compact_spreads(payload: dict, stride: int = 5) -> dict:
     return payload
 
 
+def export_craps(client, output: Path, generated_at: str) -> dict:
+    """Export only public article metadata already visible in Craps, never article bodies."""
+    account_payload = fetch_json(client, "/api/articles/accounts")
+    raw_accounts = account_payload.get("data", [])
+    accounts = [
+        {
+            "id": int(account.get("id", 0)),
+            "accountName": str(account.get("account_name", "")),
+            "starred": int(account.get("starred", 0) or 0),
+        }
+        for account in raw_accounts
+        if account.get("id") and account.get("account_name")
+    ]
+    account_ids_by_name = {account["accountName"]: account["id"] for account in accounts}
+
+    articles = []
+    page = 1
+    while True:
+        query = urlencode({"days": 0, "page": page, "size": 100})
+        article_payload = fetch_json(client, f"/api/articles/list?{query}").get("data", {})
+        page_items = article_payload.get("items", [])
+        for item in page_items:
+            account_name = str(item.get("account_name", ""))
+            articles.append({
+                "articleId": int(item.get("article_id", 0)),
+                "title": str(item.get("title", "")),
+                "url": str(item.get("url", "")),
+                "publishTime": item.get("publish_time"),
+                "accountId": account_ids_by_name.get(account_name),
+                "accountName": account_name,
+            })
+        print(f"exported Craps page {page}: {len(page_items)} articles", flush=True)
+        if len(page_items) < 100:
+            break
+        page += 1
+
+    payload = {
+        "meta": {"generatedAt": generated_at, "total": len(articles)},
+        "accounts": accounts,
+        "articles": articles,
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return {"articles": len(articles), "accounts": len(accounts), "bytes": output.stat().st_size}
+
+
 def export_snapshot(source_root: Path, output: Path) -> dict:
     load_dotenv(source_root / ".env")
     os.environ["ACCESS_ANSWER"] = ""
@@ -86,9 +132,10 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
         )
         print(f"[{index:02d}/{len(varieties):02d}] exported spreads for {variety}", flush=True)
 
+    generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
     payload = {
         "meta": {
-            "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "generatedAt": generated_at,
             "latestDate": term_matrix.get("latestDate", ""),
         },
         "commodityConfig": config,
@@ -100,11 +147,17 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    craps_report = export_craps(client, output.parent / "craps.json", generated_at)
     return {
         "output": str(output),
-        "bytes": output.stat().st_size + sum(path.stat().st_size for path in spread_dir.glob("*.json")),
+        "bytes": (
+            output.stat().st_size
+            + sum(path.stat().st_size for path in spread_dir.glob("*.json"))
+            + craps_report["bytes"]
+        ),
         "latestDate": payload["meta"]["latestDate"],
         "varieties": len(varieties),
+        "craps": craps_report,
     }
 
 
