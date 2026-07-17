@@ -3,3 +3,7 @@ dist/
 output/
 .playwright-cli/
 .DS_Store
+.env
+.env.*
+!.env.example
+logs/
