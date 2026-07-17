@@ -118,6 +118,10 @@ interface StaticSnapshot {
   termStructureMatrix: TermStructureMatrix
 }
 
+interface StaticVarietyKlines extends KLineOptionsResponse {
+  contracts: Record<string, Bar[]>
+}
+
 export interface CrapsAccount {
   id: number
   accountName: string
@@ -145,6 +149,7 @@ export interface CrapsSnapshot {
 let snapshotPromise: Promise<StaticSnapshot> | null = null
 let crapsPromise: Promise<CrapsSnapshot> | null = null
 const spreadPromises = new Map<string, Promise<Record<SpreadPriceMode, SpreadSeasonalResponse>>>()
+const klinePromises = new Map<string, Promise<StaticVarietyKlines>>()
 
 function loadSnapshot(): Promise<StaticSnapshot> {
   if (!snapshotPromise) {
@@ -167,6 +172,20 @@ function loadSpreads(variety: string): Promise<Record<SpreadPriceMode, SpreadSea
       return response.json() as Promise<Record<SpreadPriceMode, SpreadSeasonalResponse>>
     })
     spreadPromises.set(key, promise)
+  }
+  return promise
+}
+
+function loadVarietyKlines(variety: string): Promise<StaticVarietyKlines> {
+  const key = variety.toUpperCase()
+  let promise = klinePromises.get(key)
+  if (!promise) {
+    const url = `${import.meta.env.BASE_URL}data/klines/${encodeURIComponent(key)}.json`
+    promise = fetch(url).then(async response => {
+      if (!response.ok) throw new Error(`合约 K 线数据加载失败 (${response.status})`)
+      return response.json() as Promise<StaticVarietyKlines>
+    })
+    klinePromises.set(key, promise)
   }
   return promise
 }
@@ -200,14 +219,6 @@ function sliceBatch(batch: BatchKlines, days: number): BatchKlines {
       { ...entry, bars: entry.bars.filter(bar => Date.parse(bar.d) >= cutoff) },
     ]),
   )
-}
-
-function findContract(snapshot: StaticSnapshot, code: string): KLineEntry | undefined {
-  const direct = snapshot.klineBatches.contract[code]
-  if (direct) return direct
-  const variety = varietyFromCode(code)
-  return Object.entries(snapshot.klineBatches.contract)
-    .find(([candidate]) => varietyFromCode(candidate) === variety)?.[1]
 }
 
 export const api = {
@@ -245,25 +256,21 @@ export const api = {
     return sliceBatch(snapshot.klineBatches[kind], days)
   },
   kline: async (params: { code?: string; kind?: KlineBatchKind; variety?: string }) => {
-    const snapshot = await loadSnapshot()
     if (params.kind === 'dominant_continuous') {
+      const snapshot = await loadSnapshot()
       return snapshot.klineBatches.dominant_continuous[params.variety?.toUpperCase() ?? '']?.bars ?? []
     }
-    return params.code ? findContract(snapshot, params.code)?.bars ?? [] : []
+    if (!params.code) return []
+    const variety = params.variety?.toUpperCase() || varietyFromCode(params.code)
+    const payload = await loadVarietyKlines(variety)
+    return payload.contracts[params.code.toUpperCase()] ?? []
   },
   klineOptions: async (code: string): Promise<KLineOptionsResponse> => {
-    const snapshot = await loadSnapshot()
     const variety = varietyFromCode(code)
-    const contractCode = Object.keys(snapshot.klineBatches.contract)
-      .find(candidate => varietyFromCode(candidate) === variety) ?? code
-    const selected = { kind: 'contract' as const, value: contractCode, label: `主力合约 ${contractCode}` }
-    return {
-      variety,
-      selected,
-      options: [
-        selected,
-        { kind: 'dominant_continuous', value: variety, label: `主力连续 ${variety}` },
-      ],
-    }
+    const payload = await loadVarietyKlines(variety)
+    const selected = payload.options.find(
+      option => option.kind === payload.selected.kind && option.value === payload.selected.value,
+    ) ?? payload.selected
+    return { variety: payload.variety, selected, options: payload.options }
   },
 }
