@@ -1,0 +1,282 @@
+.shell {
+  position: fixed;
+  inset: var(--topbar-h) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 8px 16px 16px;
+  overflow: hidden;
+}
+
+.manifesto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+  padding: 4px 12px;
+  overflow: hidden;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.manifestoLabel {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.manifestoText {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sidebarHeader small,
+.accountGroupTitle small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.filterButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filterButtons button,
+.allAccounts,
+.searchBar button,
+.loadMore {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.filterButtons button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.filterButtons button:hover:not(:disabled),
+.allAccounts:hover,
+.searchBar button:hover:not(:disabled),
+.loadMore:hover,
+.filterButtons .activeFilter {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filterButtons .activeFilter {
+  background: rgba(89, 156, 231, .14);
+}
+
+.filterButtons button:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.allAccounts {
+  align-self: flex-start;
+  margin: 9px 12px;
+  padding: 3px 10px;
+  font-size: 11px;
+}
+
+.accountList {
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 8px;
+  overflow-y: auto;
+}
+
+.accountGroup + .accountGroup { margin-top: 8px; }
+
+.accountGroupTitle {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 6px;
+  color: #f5c542;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.accountOption {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 27px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.accountOption:hover { background: var(--bg-hover); color: var(--text-primary); }
+.accountOption input { flex: 0 0 auto; accent-color: var(--accent); }
+.accountOption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.articlePane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.searchBar {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.searchBar input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.searchBar input:focus { border-color: var(--accent); }
+.searchBar button { padding: 0 12px; font-size: 12px; }
+.searchBar button:first-of-type { border-color: rgba(89, 156, 231, .7); background: rgba(89, 156, 231, .14); color: var(--accent); }
+.searchBar button:disabled { opacity: .4; cursor: not-allowed; }
+
+.resultMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg-base);
+}
+
+.dateDivider {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 6px;
+  background: var(--bg-base);
+}
+
+.dateDivider span { flex: 1; border-top: 1px dashed rgba(196, 148, 108, .45); }
+.dateDivider time { color: #b89572; font-size: 10px; letter-spacing: .06em; }
+
+.article {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+
+.article > time {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.article p { min-width: 0; color: var(--text-primary); font-size: 12px; line-height: 1.5; }
+.article strong { color: var(--text-secondary); font-weight: 500; }
+.article p > span { color: var(--text-tertiary); }
+.article a:hover { color: var(--accent); text-decoration: underline; }
+
+.loadMore {
+  display: block;
+  margin: 16px auto 8px;
+  padding: 7px 14px;
+  font-size: 11px;
+}
+
+.empty,
+.state {
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+}
+
+.empty { min-height: 160px; }
+.state { position: fixed; inset: var(--topbar-h) 0 0; }
+
+@media (max-width: 720px) {
+  .shell {
+    position: static;
+    min-height: 100%;
+    padding: calc(var(--topbar-h) + 8px) 10px 18px;
+    overflow: visible;
+  }
+
+  .manifestoText { display: none; }
+  .content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    flex: none;
+    gap: 10px;
+  }
+  .sidebar { max-height: 280px; }
+  .articlePane { overflow: visible; }
+  .list { overflow: visible; }
+  .searchBar { position: sticky; top: var(--topbar-h); z-index: 5; padding-top: 8px; background: var(--bg-base); }
+  .searchBar button { padding: 0 9px; }
+  .resultMeta { flex-wrap: wrap; }
+  .article { grid-template-columns: 1fr; gap: 3px; padding: 9px 2px; }
+}

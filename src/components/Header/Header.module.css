@@ -51,8 +51,38 @@
 
 .dot { padding: 0 6px; color: #444; }
 
+.nav {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  align-self: stretch;
+  gap: 4px;
+  transform: translateX(-50%);
+}
+
+.nav button {
+  min-width: 66px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.nav button:hover,
+.nav .navActive {
+  color: var(--text-primary);
+}
+
+.nav .navActive {
+  border-bottom-color: var(--accent);
+}
+
 @media (max-width: 720px) {
   .bar { padding: 0 10px; }
+  .logo { max-width: 92px; }
+  .nav button { min-width: 54px; padding: 0 8px; }
   .badge { display: none; }
   .meta span:last-child,
   .dot { display: none; }
