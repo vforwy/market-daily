@@ -99,6 +99,60 @@ def export_craps(client, output: Path, generated_at: str) -> dict:
     return {"articles": len(articles), "accounts": len(accounts), "bytes": output.stat().st_size}
 
 
+def export_klines(client, output_dir: Path, varieties: list[str]) -> dict:
+    """Export active concrete-contract K-lines as lazy per-variety payloads."""
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
+
+    contract_count = 0
+    bar_count = 0
+    for index, variety in enumerate(varieties, 1):
+        query = urlencode({"variety": variety})
+        option_payload = fetch_json(client, f"/api/kline/options?{query}")
+        options = option_payload.get("options", [])
+        contracts = {}
+        for option in options:
+            if option.get("kind") != "contract" or not option.get("value"):
+                continue
+            code = str(option["value"]).upper()
+            bars = fetch_json(client, f"/api/kline?{urlencode({'code': code})}")
+            contracts[code] = bars
+            contract_count += 1
+            bar_count += len(bars)
+
+        selected = option_payload.get("selected", {})
+        selected_option = next(
+            (
+                option
+                for option in options
+                if option.get("kind") == selected.get("kind")
+                and option.get("value") == selected.get("value")
+            ),
+            selected,
+        )
+        payload = {
+            "variety": option_payload.get("variety", variety),
+            "selected": selected_option,
+            "options": options,
+            "contracts": contracts,
+        }
+        (output_dir / f"{variety}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        print(
+            f"[{index:02d}/{len(varieties):02d}] exported {len(contracts)} K-line contracts for {variety}",
+            flush=True,
+        )
+
+    return {
+        "contracts": contract_count,
+        "bars": bar_count,
+        "bytes": sum(path.stat().st_size for path in output_dir.glob("*.json")),
+    }
+
+
 def export_snapshot(source_root: Path, output: Path) -> dict:
     load_dotenv(source_root / ".env")
     os.environ["ACCESS_ANSWER"] = ""
@@ -121,6 +175,7 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
         for item in config.get("items", [])
         if item.get("enabled", True) and item.get("code")
     ]
+    kline_report = export_klines(client, output.parent / "klines", varieties)
     for index, variety in enumerate(varieties, 1):
         modes = {}
         for mode in ("raw", "adjusted"):
@@ -153,10 +208,12 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
         "bytes": (
             output.stat().st_size
             + sum(path.stat().st_size for path in spread_dir.glob("*.json"))
+            + kline_report["bytes"]
             + craps_report["bytes"]
         ),
         "latestDate": payload["meta"]["latestDate"],
         "varieties": len(varieties),
+        "klines": kline_report,
         "craps": craps_report,
     }
 
