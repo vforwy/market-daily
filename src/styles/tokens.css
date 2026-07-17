@@ -1,0 +1,35 @@
+:root {
+  /* Background */
+  --bg-base:    #0f0f0f;
+  --bg-surface: #161616;
+  --bg-raised:  #1e1e1e;
+  --bg-hover:   #282828;
+
+  /* Border */
+  --border:       #333;
+  --border-light: #252525;
+
+  /* Text */
+  --text-primary:   #e4e4e4;
+  --text-secondary: #aaa;
+  --text-tertiary:  #777;
+
+  /* Accent */
+  --accent: #599ce7;
+
+  /* Market colors — 国内期货惯例：红涨绿跌 */
+  --up:      #e84545;
+  --up-dim:  #e8454530;
+  --dn:      #2eaa6a;
+  --dn-dim:  #2eaa6a30;
+  --flat:    #888;
+
+  /* Layout */
+  --topbar-h:  42px;
+  --tabbar-h:  36px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* Font */
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
