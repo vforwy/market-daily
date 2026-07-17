@@ -304,9 +304,14 @@ def wait_for_pages(repository: str, sha: str, timeout: int, logger: logging.Logg
     run_url: str | None = None
     run_api_url: str | None = None
     while time.monotonic() < deadline:
-        payload = github_json(
-            f"{api_root}/actions/workflows/pages.yml/runs?branch=main&event=push&per_page=20"
-        )
+        try:
+            payload = github_json(
+                f"{api_root}/actions/workflows/pages.yml/runs?branch=main&event=push&per_page=20"
+            )
+        except PublishError as error:
+            logger.warning("temporary GitHub API error while finding Pages run: %s", error)
+            time.sleep(10)
+            continue
         runs = payload.get("workflow_runs", [])
         match = next((item for item in runs if item.get("head_sha") == sha), None)
         if match:
@@ -314,11 +319,16 @@ def wait_for_pages(repository: str, sha: str, timeout: int, logger: logging.Logg
             run_url = str(match.get("html_url") or "")
             logger.info("Pages run found: %s (%s)", run_url, match.get("status"))
             break
-        time.sleep(5)
+        time.sleep(10)
     if not run_api_url:
         raise PublishError(f"GitHub Pages workflow did not appear within {timeout} seconds")
     while time.monotonic() < deadline:
-        workflow_run = github_json(run_api_url)
+        try:
+            workflow_run = github_json(run_api_url)
+        except PublishError as error:
+            logger.warning("temporary GitHub API error while waiting for Pages: %s", error)
+            time.sleep(15)
+            continue
         status = workflow_run.get("status")
         conclusion = workflow_run.get("conclusion")
         logger.info("Pages run status: %s%s", status, f"/{conclusion}" if conclusion else "")
@@ -326,7 +336,7 @@ def wait_for_pages(repository: str, sha: str, timeout: int, logger: logging.Logg
             if conclusion != "success":
                 raise PublishError(f"GitHub Pages deployment failed ({conclusion}): {run_url}")
             return
-        time.sleep(10)
+        time.sleep(15)
     raise PublishError(f"GitHub Pages workflow did not finish within {timeout} seconds: {run_url}")
 
 
