@@ -107,24 +107,18 @@ def run(
 
 
 def git_output(repo: Path, args: list[str], logger: logging.Logger) -> str:
-    return run(["/usr/bin/git", *args], cwd=repo, logger=logger, capture=True).stdout.strip()
+    return run(["/usr/bin/git", *args], cwd=repo, logger=logger, capture=True).stdout.rstrip()
 
 
-def require_clean(repo: Path, logger: logging.Logger) -> None:
-    dirty = git_output(repo, ["status", "--porcelain", "--untracked-files=all"], logger)
+def require_publish_paths_clean(repo: Path, logger: logging.Logger) -> None:
+    dirty = git_output(
+        repo,
+        ["status", "--porcelain", "--untracked-files=all", "--", *PUBLISH_PATHS],
+        logger,
+    )
     if dirty:
         paths = ", ".join(line[3:] for line in dirty.splitlines()[:8])
-        raise PublishError(f"refusing to run with uncommitted files in {repo}: {paths}")
-
-
-def sync_main(repo: Path, logger: logging.Logger) -> None:
-    branch = git_output(repo, ["branch", "--show-current"], logger)
-    if branch != "main":
-        raise PublishError(f"{repo} must be on main, currently on {branch or 'detached HEAD'}")
-    require_clean(repo, logger)
-    run(["/usr/bin/git", "fetch", "origin", "main"], cwd=repo, logger=logger)
-    run(["/usr/bin/git", "merge", "--ff-only", "origin/main"], cwd=repo, logger=logger)
-    require_clean(repo, logger)
+        raise PublishError(f"refusing to overwrite uncommitted publish data in {repo}: {paths}")
 
 
 def json_payload(path: Path) -> Any:
@@ -363,10 +357,27 @@ def verify_public_site(site_url: str, summary: dict[str, Any], sha: str, timeout
     raise PublishError(f"public site verification timed out: {last_error}")
 
 
-def notify(kind: str, site_url: str, message: str, logger: logging.Logger) -> None:
-    command: list[str | Path] = [sys.executable, ROOT / "scripts" / "notify_feishu.py", "--site-url", site_url]
+def notify(
+    kind: str,
+    site_url: str,
+    message: str,
+    logger: logging.Logger,
+    *,
+    fragments_root: Path,
+    failure_stage: str = "",
+) -> None:
+    command: list[str | Path] = [
+        sys.executable,
+        ROOT / "scripts" / "notify_feishu.py",
+        "--site-url",
+        site_url,
+        "--fragments-root",
+        fragments_root,
+        "--log-path",
+        LOG_DIR / "daily_publish.log",
+    ]
     if kind == "failure":
-        command.extend(["--failure", message[:500]])
+        command.extend(["--failure", message[:500], "--failure-stage", failure_stage or "未知"])
     elif kind == "unchanged":
         command.append("--unchanged")
     run(command, cwd=ROOT, logger=logger)
@@ -376,7 +387,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="Export and validate, then restore data without push/notify")
     parser.add_argument("--skip-pipeline", action="store_true", help="Validate the current database without running ingestion")
-    parser.add_argument("--skip-sync", action="store_true", help="Do not fetch and fast-forward either repository")
     parser.add_argument("--skip-notify", action="store_true", help="Do not send Feishu success/failure notifications")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--fragments-root", type=Path)
@@ -405,6 +415,7 @@ def main() -> int:
 
     data_modified = False
     committed = False
+    stage = "启动前检查"
     try:
         logger.info("daily publish started (dry_run=%s skip_pipeline=%s)", args.dry_run, args.skip_pipeline)
         if not (fragments_root / ".git").exists():
@@ -415,28 +426,24 @@ def main() -> int:
         if not args.skip_pipeline and not pipeline_runner.is_file():
             raise PublishError(f"local pipeline profile not found: {pipeline_runner}")
 
-        if args.dry_run:
-            require_clean(fragments_root, logger)
-            require_clean(ROOT, logger)
-        elif args.skip_sync:
-            require_clean(fragments_root, logger)
-            require_clean(ROOT, logger)
-        else:
-            sync_main(fragments_root, logger)
-            sync_main(ROOT, logger)
+        require_publish_paths_clean(ROOT, logger)
 
+        stage = "准备静态快照"
         before = semantic_fingerprint(DATA_DIR)
         expected_date: str | None = None
         if not args.skip_pipeline:
+            stage = "运行日终数据流水线"
             run(["/bin/bash", pipeline_runner], cwd=fragments_root, logger=logger)
             expected_date = str(pipeline_report(fragments_root)["target_trade_date"])
 
+        stage = "导出静态快照"
         run(
             [export_python, "-B", ROOT / "scripts" / "export_snapshot.py", "--source-root", fragments_root],
             cwd=ROOT,
             logger=logger,
         )
         data_modified = True
+        stage = "校验静态快照"
         summary = validate_export(expected_date)
         after = semantic_fingerprint(DATA_DIR)
         logger.info("validated export: %s", json.dumps(summary, ensure_ascii=False, sort_keys=True))
@@ -445,7 +452,7 @@ def main() -> int:
             logger.info("dry-run complete; semantic_change=%s", before != after)
             restore_generated_data(logger)
             data_modified = False
-            require_clean(ROOT, logger)
+            require_publish_paths_clean(ROOT, logger)
             return 0
 
         if before == after:
@@ -453,16 +460,21 @@ def main() -> int:
             data_modified = False
             logger.info("no semantic data changes; deployment skipped")
             if not args.skip_notify:
-                notify("unchanged", site_url, "", logger)
+                stage = "发送飞书无变化通知"
+                notify("unchanged", site_url, "", logger, fragments_root=fragments_root)
             return 0
 
+        stage = "提交并推送快照"
         sha = stage_and_commit(summary, logger)
         committed = True
         run(["/usr/bin/git", "push", "origin", "main"], cwd=ROOT, logger=logger)
+        stage = "等待 GitHub Pages 部署"
         wait_for_pages(repository, sha, args.pages_timeout, logger)
+        stage = "验证 Pages 线上数据"
         verify_public_site(site_url, summary, sha, args.site_timeout, logger)
         if not args.skip_notify:
-            notify("success", site_url, "", logger)
+            stage = "发送飞书成功通知"
+            notify("success", site_url, "", logger, fragments_root=fragments_root)
         logger.info("daily publish completed at commit %s", sha)
         return 0
     except Exception as error:  # keep the scheduler failure path and notification in one place
@@ -474,7 +486,14 @@ def main() -> int:
                 logger.exception("failed to restore generated data")
         if not args.dry_run and not args.skip_notify:
             try:
-                notify("failure", site_url, str(error), logger)
+                notify(
+                    "failure",
+                    site_url,
+                    str(error),
+                    logger,
+                    fragments_root=fragments_root,
+                    failure_stage=stage,
+                )
             except Exception:
                 logger.exception("failed to send Feishu failure notification")
         return 1
