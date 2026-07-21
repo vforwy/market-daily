@@ -90,7 +90,7 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
           return `${date}<br/>${lines.join('<br/>')}`
         },
       },
-      grid: { left: 54, right: 16, top: 54, bottom: 34 },
+      grid: { left: 54, right: 16, top: 54, bottom: 60 },
       xAxis: {
         type: 'time',
         axisTick: { show: false },
@@ -110,6 +110,20 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
         },
         splitLine: { lineStyle: { color: '#2f343a', type: 'dashed', opacity: 0.8 } },
       },
+      dataZoom: [
+        { type: 'inside', filterMode: 'none' },
+        {
+          type: 'slider',
+          height: 16,
+          bottom: 12,
+          borderColor: '#333',
+          backgroundColor: '#171717',
+          fillerColor: 'rgba(89,156,231,.18)',
+          handleStyle: { color: '#599ce7' },
+          textStyle: { color: '#777', fontSize: 9 },
+          showDataShadow: false,
+        },
+      ],
       series,
     }, true)
     chartRef.current.resize()
