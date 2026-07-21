@@ -18,6 +18,12 @@
   gap: 12px;
 }
 
+.headerNote {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 400;
+}
+
 .segmented {
   display: inline-flex;
   align-items: center;

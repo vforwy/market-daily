@@ -106,6 +106,97 @@ export interface SpreadSeasonalResponse {
   specialSpreads: SpreadSeasonalChart[]
 }
 
+export interface FixedContractSpreadPoint {
+  d: string
+  v: number | null
+  nearPrice: number | null
+  farPrice: number | null
+}
+
+export interface FixedContractSpreadSeries {
+  farCode: string
+  farLabel: string
+  label: string
+  points: FixedContractSpreadPoint[]
+}
+
+export interface FixedContractSpreadChart {
+  nearCode: string
+  nearLabel: string
+  series: FixedContractSpreadSeries[]
+}
+
+export interface FixedContractSpreadResponse {
+  variety: string
+  latestDate: string
+  historyStart: string
+  dominantCode: string
+  priceBasis: 'raw_settle'
+  charts: FixedContractSpreadChart[]
+}
+
+export interface CrossSpreadPoint {
+  d: string
+  v: number | null
+  instance: string
+  leg1: string
+  leg2: string
+  leg1Price: number | null
+  leg2Price: number | null
+}
+
+export interface CrossSpreadLatestPoint {
+  v: number | null
+  instance: string
+  leg1: string
+  leg2: string
+  leg1Price: number | null
+  leg2Price: number | null
+}
+
+export interface CrossSpreadOverviewChart {
+  code: string
+  name: string
+  group: string
+  latestDate: string
+  currentMonth: number | null
+  currentMonthLabel: string
+  latestFixed: CrossSpreadLatestPoint | null
+  latestDominant: CrossSpreadLatestPoint | null
+  fixedSeries: CrossSpreadPoint[]
+  dominantSeries: CrossSpreadPoint[]
+}
+
+export interface CrossSpreadOverviewResponse {
+  latestDate: string
+  charts: CrossSpreadOverviewChart[]
+}
+
+export interface CrossSpreadStructurePoint extends CrossSpreadLatestPoint {
+  month: string
+  label: string
+}
+
+export interface CrossSpreadMonthSeries {
+  month: string
+  label: string
+  points: CrossSpreadPoint[]
+}
+
+export interface CrossSpreadDetailResponse {
+  code: string
+  name: string
+  group: string
+  latestDate: string
+  structure: CrossSpreadStructurePoint[]
+  monthSeries: CrossSpreadMonthSeries[]
+  dominantSeries: CrossSpreadPoint[]
+}
+
+type StaticSpreadPayload = Record<SpreadPriceMode, SpreadSeasonalResponse> & {
+  fixedContract: FixedContractSpreadResponse
+}
+
 interface SnapshotMeta {
   generatedAt: string
   latestDate: string
@@ -148,8 +239,10 @@ export interface CrapsSnapshot {
 
 let snapshotPromise: Promise<StaticSnapshot> | null = null
 let crapsPromise: Promise<CrapsSnapshot> | null = null
-const spreadPromises = new Map<string, Promise<Record<SpreadPriceMode, SpreadSeasonalResponse>>>()
+let crossSpreadOverviewPromise: Promise<CrossSpreadOverviewResponse> | null = null
+const spreadPromises = new Map<string, Promise<StaticSpreadPayload>>()
 const klinePromises = new Map<string, Promise<StaticVarietyKlines>>()
+const crossSpreadDetailPromises = new Map<string, Promise<CrossSpreadDetailResponse>>()
 
 function loadSnapshot(): Promise<StaticSnapshot> {
   if (!snapshotPromise) {
@@ -162,14 +255,14 @@ function loadSnapshot(): Promise<StaticSnapshot> {
   return snapshotPromise
 }
 
-function loadSpreads(variety: string): Promise<Record<SpreadPriceMode, SpreadSeasonalResponse>> {
+function loadSpreads(variety: string): Promise<StaticSpreadPayload> {
   const key = variety.toUpperCase()
   let promise = spreadPromises.get(key)
   if (!promise) {
     const url = `${import.meta.env.BASE_URL}data/spreads/${encodeURIComponent(key)}.json`
     promise = fetch(url).then(async response => {
       if (!response.ok) throw new Error(`价差数据加载失败 (${response.status})`)
-      return response.json() as Promise<Record<SpreadPriceMode, SpreadSeasonalResponse>>
+      return response.json() as Promise<StaticSpreadPayload>
     })
     spreadPromises.set(key, promise)
   }
@@ -199,6 +292,31 @@ function loadCraps(): Promise<CrapsSnapshot> {
     })
   }
   return crapsPromise
+}
+
+function loadCrossSpreadOverview(): Promise<CrossSpreadOverviewResponse> {
+  if (!crossSpreadOverviewPromise) {
+    const url = `${import.meta.env.BASE_URL}data/cross-spreads/overview.json`
+    crossSpreadOverviewPromise = fetch(url).then(async response => {
+      if (!response.ok) throw new Error(`跨品种价差数据加载失败 (${response.status})`)
+      return response.json() as Promise<CrossSpreadOverviewResponse>
+    })
+  }
+  return crossSpreadOverviewPromise
+}
+
+function loadCrossSpreadDetail(code: string): Promise<CrossSpreadDetailResponse> {
+  const key = code.toUpperCase()
+  let promise = crossSpreadDetailPromises.get(key)
+  if (!promise) {
+    const url = `${import.meta.env.BASE_URL}data/cross-spreads/${encodeURIComponent(key)}.json`
+    promise = fetch(url).then(async response => {
+      if (!response.ok) throw new Error(`跨品种价差详情加载失败 (${response.status})`)
+      return response.json() as Promise<CrossSpreadDetailResponse>
+    })
+    crossSpreadDetailPromises.set(key, promise)
+  }
+  return promise
 }
 
 function varietyFromCode(code: string): string {
@@ -239,8 +357,10 @@ export const api = {
     variety: string,
     _years = 5,
     priceMode: SpreadPriceMode = 'raw',
+    _specialOnly = false,
   ) => {
     void _years
+    void _specialOnly
     const modes = await loadSpreads(variety)
     return modes[priceMode] ?? {
       variety: variety.toUpperCase(),
@@ -251,6 +371,19 @@ export const api = {
       specialSpreads: [],
     }
   },
+  fixedContractSpreads: async (variety: string): Promise<FixedContractSpreadResponse> => {
+    const payload = await loadSpreads(variety)
+    return payload.fixedContract ?? {
+      variety: variety.toUpperCase(),
+      latestDate: '',
+      historyStart: '2026-01-01',
+      dominantCode: '',
+      priceBasis: 'raw_settle',
+      charts: [],
+    }
+  },
+  crossSpreadOverview: loadCrossSpreadOverview,
+  crossSpreadDetail: loadCrossSpreadDetail,
   klinesBatch: async (days = 60, kind: KlineBatchKind = 'contract') => {
     const snapshot = await loadSnapshot()
     return sliceBatch(snapshot.klineBatches[kind], days)

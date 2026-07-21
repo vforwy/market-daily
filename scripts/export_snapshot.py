@@ -22,8 +22,9 @@ def fetch_json(client, path: str):
 
 
 def compact_spreads(payload: dict, stride: int = 5) -> dict:
-    """Keep weekly-resolution seasonal curves and only tooltip fields used by the UI."""
-    for chart in payload.get("spreads", []):
+    """Keep only special seasonal curves; fixed-contract curves replace legacy monthly spreads."""
+    special_spreads = payload.get("specialSpreads", [])
+    for chart in special_spreads:
         compacted = {}
         for year, points in chart.get("seriesByYear", {}).items():
             sampled = []
@@ -38,17 +39,8 @@ def compact_spreads(payload: dict, stride: int = 5) -> dict:
                 })
             compacted[year] = sampled
         chart["seriesByYear"] = compacted
-    by_code = {chart.get("spreadCode"): chart for chart in payload.get("spreads", [])}
-    payload["monthlySpreads"] = [
-        by_code[item.get("spreadCode")]
-        for item in payload.get("monthlySpreads", [])
-        if item.get("spreadCode") in by_code
-    ]
-    payload["specialSpreads"] = [
-        by_code[item.get("spreadCode")]
-        for item in payload.get("specialSpreads", [])
-        if item.get("spreadCode") in by_code
-    ]
+    payload["monthlySpreads"] = []
+    payload["specialSpreads"] = special_spreads
     payload["spreads"] = []
     return payload
 
@@ -153,6 +145,66 @@ def export_klines(client, output_dir: Path, varieties: list[str]) -> dict:
     }
 
 
+def export_spreads(client, output_dir: Path, varieties: list[str]) -> dict:
+    """Export special seasonal spreads and the 2026+ fixed-contract 3x5 curves."""
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
+    total_bytes = 0
+    fixed_charts = 0
+    for index, variety in enumerate(varieties, 1):
+        modes = {}
+        for mode in ("raw", "adjusted"):
+            query = urlencode({"variety": variety, "years": 5, "priceMode": mode, "specialOnly": 1})
+            modes[mode] = compact_spreads(fetch_json(client, f"/api/spreads/seasonal?{query}"))
+        fixed_query = urlencode({"variety": variety})
+        modes["fixedContract"] = fetch_json(
+            client,
+            f"/api/spreads/fixed-contract?{fixed_query}",
+        )
+        fixed_charts += len(modes["fixedContract"].get("charts", []))
+        path = output_dir / f"{variety}.json"
+        path.write_text(
+            json.dumps(modes, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        total_bytes += path.stat().st_size
+        print(f"[{index:02d}/{len(varieties):02d}] exported spreads for {variety}", flush=True)
+    return {"files": len(varieties), "fixedCharts": fixed_charts, "bytes": total_bytes}
+
+
+def export_cross_spreads(client, output_dir: Path) -> dict:
+    """Export the overview eagerly and each combination detail as a lazy static payload."""
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
+
+    overview = fetch_json(client, "/api/cross-spreads/overview")
+    overview_path = output_dir / "overview.json"
+    overview_path.write_text(
+        json.dumps(overview, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    detail_count = 0
+    for chart in overview.get("charts", []):
+        code = str(chart.get("code", "")).strip().upper()
+        if not code:
+            continue
+        detail = fetch_json(client, f"/api/cross-spreads/{code}")
+        (output_dir / f"{code}.json").write_text(
+            json.dumps(detail, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        detail_count += 1
+
+    return {
+        "charts": len(overview.get("charts", [])),
+        "details": detail_count,
+        "bytes": sum(path.stat().st_size for path in output_dir.glob("*.json")),
+    }
+
+
 def export_snapshot(source_root: Path, output: Path) -> dict:
     load_dotenv(source_root / ".env")
     os.environ["ACCESS_ANSWER"] = ""
@@ -166,26 +218,14 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
     continuous_batch = fetch_json(client, "/api/klines/batch?days=999&kind=dominant_continuous")
     term_matrix = fetch_json(client, "/api/term-structure/matrix")
 
-    spread_dir = output.parent / "spreads"
-    if spread_dir.exists():
-        shutil.rmtree(spread_dir)
-    spread_dir.mkdir(parents=True)
     varieties = [
         str(item.get("code", "")).upper()
         for item in config.get("items", [])
         if item.get("enabled", True) and item.get("code")
     ]
     kline_report = export_klines(client, output.parent / "klines", varieties)
-    for index, variety in enumerate(varieties, 1):
-        modes = {}
-        for mode in ("raw", "adjusted"):
-            query = urlencode({"variety": variety, "years": 5, "priceMode": mode})
-            modes[mode] = compact_spreads(fetch_json(client, f"/api/spreads/seasonal?{query}"))
-        (spread_dir / f"{variety}.json").write_text(
-            json.dumps(modes, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
-        print(f"[{index:02d}/{len(varieties):02d}] exported spreads for {variety}", flush=True)
+    spread_report = export_spreads(client, output.parent / "spreads", varieties)
+    cross_spread_report = export_cross_spreads(client, output.parent / "cross-spreads")
 
     generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
     payload = {
@@ -207,13 +247,16 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
         "output": str(output),
         "bytes": (
             output.stat().st_size
-            + sum(path.stat().st_size for path in spread_dir.glob("*.json"))
+            + spread_report["bytes"]
+            + cross_spread_report["bytes"]
             + kline_report["bytes"]
             + craps_report["bytes"]
         ),
         "latestDate": payload["meta"]["latestDate"],
         "varieties": len(varieties),
         "klines": kline_report,
+        "spreads": spread_report,
+        "crossSpreads": cross_spread_report,
         "craps": craps_report,
     }
 

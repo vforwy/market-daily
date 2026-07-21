@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { api, type SpreadPriceMode, type SpreadSeasonalChart } from '../../api'
-import { usePersistentState } from '../../hooks/usePersistentState'
+import { api, type SpreadSeasonalChart } from '../../api'
+import FixedContractSpreadCard from './FixedContractSpreadCard'
 import SpreadSeasonalityCard from './SpreadSeasonalityCard'
 import styles from './SpreadSeasonalityPanel.module.css'
 
@@ -9,28 +9,31 @@ interface Props {
 }
 
 export default function SpreadSeasonalityPanel({ variety }: Props) {
-  const [priceMode, setPriceMode] = usePersistentState<SpreadPriceMode>(
-    'fom:spread-price-mode',
-    'adjusted',
-  )
-  const { data, isLoading } = useQuery({
-    queryKey: ['spreadSeasonal', variety, 5, priceMode],
-    queryFn: () => api.spreadSeasonal(variety, 5, priceMode),
+  const { data: fixedData, isLoading: fixedLoading } = useQuery({
+    queryKey: ['fixedContractSpreads', variety],
+    queryFn: () => api.fixedContractSpreads(variety),
+    staleTime: 600_000,
+    enabled: Boolean(variety),
+  })
+  const { data: seasonalData, isLoading: seasonalLoading } = useQuery({
+    queryKey: ['spreadSeasonal', variety, 5, 'raw'],
+    queryFn: () => api.spreadSeasonal(variety, 5, 'raw', true),
     staleTime: 600_000,
     enabled: Boolean(variety),
   })
 
-  const monthlySpreads = data?.monthlySpreads ?? []
-  const specialSpreads = data?.specialSpreads ?? []
-  const hasSpreads = monthlySpreads.length > 0 || specialSpreads.length > 0
+  const fixedCharts = fixedData?.charts ?? []
+  const specialSpreads = seasonalData?.specialSpreads ?? []
+  const isLoading = fixedLoading || seasonalLoading
+  const hasSpreads = fixedCharts.length > 0 || specialSpreads.length > 0
 
   const renderGrid = (items: SpreadSeasonalChart[], className = styles.grid) => (
     <div className={className}>
       {items.map(item => (
         <SpreadSeasonalityCard
-          key={`${priceMode}:${item.spreadCode}`}
+          key={item.spreadCode}
           item={item}
-          years={data?.years ?? []}
+          years={seasonalData?.years ?? []}
         />
       ))}
     </div>
@@ -39,34 +42,29 @@ export default function SpreadSeasonalityPanel({ variety }: Props) {
   return (
     <section className={styles.section}>
       <div className={styles.sectionHeader}>
-        <span>价差季节图（近 5 年）</span>
-        <div className={styles.segmented} aria-label="价差价格口径">
-          <button
-            type="button"
-            className={`${styles.segmentButton} ${priceMode === 'raw' ? styles.segmentActive : ''}`}
-            onClick={() => setPriceMode('raw')}
-          >
-            原始
-          </button>
-          <button
-            type="button"
-            className={`${styles.segmentButton} ${priceMode === 'adjusted' ? styles.segmentActive : ''}`}
-            onClick={() => setPriceMode('adjusted')}
-          >
-            前复权
-          </button>
-        </div>
+        <span>月差结构</span>
+        <span className={styles.headerNote}>近月-远月 · 上行正套走强 / 下行反套走强</span>
       </div>
       {isLoading && <div className={styles.state}>价差数据加载中...</div>}
-      {!isLoading && (!data || !hasSpreads) && (
+      {!isLoading && !hasSpreads && (
         <div className={styles.state}>暂无价差数据</div>
       )}
-      {!isLoading && data && hasSpreads && (
+      {!isLoading && hasSpreads && (
         <div className={styles.groups}>
-          {monthlySpreads.length > 0 && (
+          {fixedCharts.length > 0 && (
             <section className={styles.group}>
-              <div className={styles.groupHeader}>月差</div>
-              {renderGrid(monthlySpreads, styles.monthlyGrid)}
+              <div className={styles.groupHeader}>
+                固定合约月差（{fixedData?.historyStart.slice(0, 4)}年以来）
+              </div>
+              <div className={styles.monthlyGrid}>
+                {fixedCharts.map(item => (
+                  <FixedContractSpreadCard
+                    key={item.nearCode}
+                    item={item}
+                    dominantCode={fixedData?.dominantCode ?? ''}
+                  />
+                ))}
+              </div>
             </section>
           )}
           {specialSpreads.length > 0 && (
