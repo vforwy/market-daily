@@ -161,7 +161,7 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
     >
       <div className={styles.cardHeader}>
         <div>
-          <div className={styles.cardTitle}>{item.name}</div>
+          <div className={styles.cardTitle}>{item.name.replaceAll('代理', '').trim()}</div>
           <div className={styles.cardMeta}>当前同月 {item.currentMonthLabel || '--'}</div>
         </div>
         <span className={styles.openHint}>详情 ›</span>

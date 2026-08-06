@@ -23,6 +23,10 @@ interface DetailTab {
 }
 interface SelectTarget { code: string; name: string }
 
+function crossSpreadDisplayName(name: string): string {
+  return name.replaceAll('代理', '').trim()
+}
+
 export default function Commodities() {
   const [activeTab, setActiveTab] = usePersistentState('fom:commodity-active-tab', 'charts')
   const [detailTabs, setDetailTabs] = usePersistentState<DetailTab[]>('fom:commodity-detail-tabs', [])
@@ -46,10 +50,11 @@ export default function Commodities() {
 
   const openCrossSpreadDetail = (target: SelectTarget) => {
     const id = `detail:cross-spread:${target.code}`
+    const name = crossSpreadDisplayName(target.name)
     setDetailTabs(tabs => (
       tabs.some(tab => tab.id === id)
         ? tabs
-        : [...tabs, { id, code: target.code, name: target.name, kind: 'crossSpread' }]
+        : [...tabs, { id, code: target.code, name, kind: 'crossSpread' }]
     ))
     setActiveTab(id)
   }
@@ -67,7 +72,7 @@ export default function Commodities() {
     ...BASE_TABS,
     ...detailTabs.map(tab => ({
       id: tab.id,
-      label: tab.name,
+      label: tab.kind === 'crossSpread' ? crossSpreadDisplayName(tab.name) : tab.name,
       closable: true,
     })),
   ]

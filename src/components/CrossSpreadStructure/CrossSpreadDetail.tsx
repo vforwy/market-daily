@@ -245,8 +245,12 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
     <div className={styles.detailWrap}>
       <div className={styles.detailHeader}>
         <div>
-          <div className={styles.detailTitle}>{data.name}</div>
+          <div className={styles.detailTitle}>{data.name.replaceAll('代理', '').trim()}</div>
           <div className={styles.detailMeta}>{data.group} · 原始结算价 · 数据日期 {data.latestDate}</div>
+          <div className={styles.detailFormula}>
+            <span>计算公式</span>
+            <code>{data.formulaLabel}</code>
+          </div>
         </div>
         <div className={styles.detailLegend}>
           <span><i className={styles.fixedDot} />年月合约</span>

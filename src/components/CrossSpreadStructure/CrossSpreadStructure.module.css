@@ -243,6 +243,22 @@
   font-size: 10px;
 }
 
+.detailFormula {
+  margin-top: 7px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.detailFormula code {
+  color: #8bc9f5;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .detailLegend {
   gap: 14px;
   color: var(--text-secondary);

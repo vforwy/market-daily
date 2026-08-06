@@ -187,6 +187,7 @@ export interface CrossSpreadDetailResponse {
   code: string
   name: string
   group: string
+  formulaLabel: string
   latestDate: string
   structure: CrossSpreadStructurePoint[]
   monthSeries: CrossSpreadMonthSeries[]
