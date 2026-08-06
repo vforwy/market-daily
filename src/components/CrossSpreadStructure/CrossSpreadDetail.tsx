@@ -6,6 +6,7 @@ import {
   type CrossSpreadPoint,
 } from '../../api'
 import { echarts } from '../../lib/echarts'
+import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
 
 const DOMINANT_KEY = 'dominant'
@@ -245,7 +246,7 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
     <div className={styles.detailWrap}>
       <div className={styles.detailHeader}>
         <div>
-          <div className={styles.detailTitle}>{data.name.replaceAll('代理', '').trim()}</div>
+          <div className={styles.detailTitle}>{crossSpreadDisplayName(data.name)}</div>
           <div className={styles.detailMeta}>{data.group} · 原始结算价 · 数据日期 {data.latestDate}</div>
           <div className={styles.detailFormula}>
             <span>计算公式</span>

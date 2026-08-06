@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react'
+import { crossSpreadDisplayName } from '../components/CrossSpreadStructure/display'
 import SubTabBar, { type SubTabItem } from '../components/Layout/SubTabBar'
 import { usePersistentState } from '../hooks/usePersistentState'
 import styles from './Commodities.module.css'
@@ -22,10 +23,6 @@ interface DetailTab {
   kind?: 'contract' | 'crossSpread'
 }
 interface SelectTarget { code: string; name: string }
-
-function crossSpreadDisplayName(name: string): string {
-  return name.replaceAll('代理', '').trim()
-}
 
 export default function Commodities() {
   const [activeTab, setActiveTab] = usePersistentState('fom:commodity-active-tab', 'charts')
