@@ -6,13 +6,13 @@ import {
   type CrossSpreadPoint,
 } from '../../api'
 import { echarts } from '../../lib/echarts'
-import { defaultSpreadMonth } from '../../lib/spreadMonths'
+import { defaultSpreadMonth, spreadMonthColor } from '../../lib/spreadMonths'
 import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
 
 const DOMINANT_KEY = 'dominant'
-const COLORS = ['#18a0ff', '#9b8afb', '#32c5a2', '#e88c5c', '#d4c15f', '#e56b9f', '#8fc35d']
+const DOMINANT_COLOR = '#f0ad4e'
 
 interface TooltipParam {
   seriesName: string
@@ -85,7 +85,7 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
         markLine: {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: '#f0ad4e', type: 'solid', width: 1.2 },
+          lineStyle: { color: DOMINANT_COLOR, type: 'solid', width: 1.2 },
           label: {
             show: dominantLatest != null,
             color: '#c9a15c',
@@ -142,7 +142,6 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
     chartRef.current.setOption({
       backgroundColor: 'transparent',
       animation: false,
-      color: [...COLORS, '#f0ad4e'],
       grid: { left: 68, right: 28, top: 52, bottom: 68 },
       legend: {
         type: 'scroll',
@@ -206,27 +205,32 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
           textStyle: { color: '#777', fontSize: 9 },
         },
       ],
-      series: selectedSeries.map((series, index) => ({
-        name: series.label,
-        type: 'line',
-        showSymbol: false,
-        sampling: 'lttb',
-        connectNulls: false,
-        lineStyle: {
-          width: series.key === DOMINANT_KEY ? 1.8 : 2,
-          type: 'solid',
-          color: series.key === DOMINANT_KEY ? '#f0ad4e' : COLORS[index % COLORS.length],
-        },
-        itemStyle: { color: series.key === DOMINANT_KEY ? '#f0ad4e' : COLORS[index % COLORS.length] },
-        data: series.points.map((point: CrossSpreadPoint) => [point.d, point.v]),
-        markLine: index === 0 ? {
-          silent: true,
-          symbol: 'none',
-          label: { show: false },
-          lineStyle: { color: '#3a3a3a' },
-          data: [{ yAxis: 0 }],
-        } : undefined,
-      })),
+      series: selectedSeries.map((series, index) => {
+        const color = series.key === DOMINANT_KEY
+          ? DOMINANT_COLOR
+          : spreadMonthColor(series.key)
+        return {
+          name: series.label,
+          type: 'line',
+          showSymbol: false,
+          sampling: 'lttb',
+          connectNulls: false,
+          lineStyle: {
+            width: series.key === DOMINANT_KEY ? 1.8 : 2,
+            type: series.key === DOMINANT_KEY ? 'dashed' : 'solid',
+            color,
+          },
+          itemStyle: { color },
+          data: series.points.map((point: CrossSpreadPoint) => [point.d, point.v]),
+          markLine: index === 0 ? {
+            silent: true,
+            symbol: 'none',
+            label: { show: false },
+            lineStyle: { color: '#3a3a3a' },
+            data: [{ yAxis: 0 }],
+          } : undefined,
+        }
+      }),
     }, true)
     chartRef.current.resize()
   }, [dates, selectedSeries])
@@ -295,19 +299,24 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
           </div>
         </div>
         <div className={styles.contractPicker}>
-          {data.monthSeries.map(series => (
-            <button
-              key={series.month}
-              className={selected.includes(series.month) ? styles.contractSelected : ''}
-              onClick={() => toggle(series.month)}
-            >
-              {series.label}
-            </button>
-          ))}
+          {data.monthSeries.map(series => {
+            const color = spreadMonthColor(series.month)
+            return (
+              <button
+                key={series.month}
+                className={selected.includes(series.month) ? styles.contractSelected : ''}
+                onClick={() => toggle(series.month)}
+              >
+                <i aria-hidden="true" className={styles.contractColorDot} style={{ backgroundColor: color }} />
+                {series.label}
+              </button>
+            )
+          })}
           <button
             className={`${styles.dominantChoice} ${selected.includes(DOMINANT_KEY) ? styles.contractSelected : ''}`}
             onClick={() => toggle(DOMINANT_KEY)}
           >
+            <i aria-hidden="true" className={styles.contractColorDot} style={{ backgroundColor: DOMINANT_COLOR }} />
             主力未复权
           </button>
         </div>
