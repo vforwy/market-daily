@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CrossSpreadOverviewChart, CrossSpreadPoint } from '../../api'
 import { echarts } from '../../lib/echarts'
+import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
 
@@ -45,6 +46,7 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
     () => filterPoints(item.dominantSeries, cutoff),
     [cutoff, item.dominantSeries],
   )
+  const dates = useMemo(() => tradingDates([fixed, dominant]), [dominant, fixed])
 
   useEffect(() => {
     if (!elRef.current) return
@@ -119,10 +121,17 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
         },
       },
       xAxis: {
-        type: 'time',
+        type: 'category',
+        data: dates,
+        boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: '#444' } },
-        axisLabel: { color: '#777', fontSize: 9, hideOverlap: true },
+        axisLabel: {
+          color: '#777',
+          fontSize: 9,
+          hideOverlap: true,
+          formatter: (value: string) => value.slice(5),
+        },
         splitLine: { show: false },
       },
       yAxis: {
@@ -138,7 +147,7 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
       series,
     }, true)
     chart.resize()
-  }, [dominant, fixed, item.currentMonthLabel, mode])
+  }, [dates, dominant, fixed, item.currentMonthLabel, mode])
 
   useEffect(() => {
     const observer = new ResizeObserver(() => chartRef.current?.resize())

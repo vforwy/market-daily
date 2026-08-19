@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type {
   FixedContractSpreadChart,
   FixedContractSpreadPoint,
 } from '../../api'
 import { echarts } from '../../lib/echarts'
+import { tradingDates } from '../../lib/tradingAxis'
 import styles from './SpreadSeasonalityPanel.module.css'
 
 const SERIES_COLORS = ['#18a0ff', '#f0ad4e', '#9b8afb', '#32c5a2', '#e56b9f']
@@ -30,6 +31,10 @@ interface Props {
 export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const dates = useMemo(
+    () => tradingDates(item.series.map(entry => entry.points)),
+    [item.series],
+  )
 
   useEffect(() => {
     if (!elRef.current) return
@@ -92,10 +97,17 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
       },
       grid: { left: 54, right: 16, top: 54, bottom: 60 },
       xAxis: {
-        type: 'time',
+        type: 'category',
+        data: dates,
+        boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: '#3b3f45' } },
-        axisLabel: { color: '#8f98a5', fontSize: 9, hideOverlap: true },
+        axisLabel: {
+          color: '#8f98a5',
+          fontSize: 9,
+          hideOverlap: true,
+          formatter: (value: string) => value.slice(5),
+        },
         splitLine: { show: false },
       },
       yAxis: {
@@ -127,7 +139,7 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
       series,
     }, true)
     chartRef.current.resize()
-  }, [item])
+  }, [dates, item])
 
   useEffect(() => {
     const observer = new ResizeObserver(() => chartRef.current?.resize())

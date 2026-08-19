@@ -6,6 +6,7 @@ import {
   type CrossSpreadPoint,
 } from '../../api'
 import { echarts } from '../../lib/echarts'
+import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
 
@@ -126,6 +127,10 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
     }
     return fixed
   }, [data.dominantSeries, data.monthSeries, selected])
+  const dates = useMemo(
+    () => tradingDates(selectedSeries.map(series => series.points)),
+    [selectedSeries],
+  )
 
   useEffect(() => {
     if (!elRef.current) return
@@ -165,10 +170,17 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
         },
       },
       xAxis: {
-        type: 'time',
+        type: 'category',
+        data: dates,
+        boundaryGap: false,
         axisTick: { show: false },
         axisLine: { lineStyle: { color: '#444' } },
-        axisLabel: { color: '#888', fontSize: 10, hideOverlap: true },
+        axisLabel: {
+          color: '#888',
+          fontSize: 10,
+          hideOverlap: true,
+          formatter: (value: string) => value.slice(5),
+        },
       },
       yAxis: {
         type: 'value',
@@ -216,7 +228,7 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
       })),
     }, true)
     chartRef.current.resize()
-  }, [selectedSeries])
+  }, [dates, selectedSeries])
 
   useEffect(() => {
     const observer = new ResizeObserver(() => chartRef.current?.resize())
