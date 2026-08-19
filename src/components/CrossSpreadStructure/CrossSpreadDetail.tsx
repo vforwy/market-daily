@@ -6,6 +6,7 @@ import {
   type CrossSpreadPoint,
 } from '../../api'
 import { echarts } from '../../lib/echarts'
+import { defaultSpreadMonth } from '../../lib/spreadMonths'
 import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
@@ -244,8 +245,9 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
 }
 
 function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) {
+  const currentMonth = defaultSpreadMonth(data.structure, data.monthSeries)
   const [selected, setSelected] = useState<string[]>(
-    () => [data.monthSeries[0]?.month, DOMINANT_KEY].filter(Boolean) as string[],
+    () => [currentMonth, DOMINANT_KEY].filter(Boolean) as string[],
   )
 
   const toggle = (key: string) => {
@@ -288,7 +290,7 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
             <p>固定年月互不拼接；主力换月不复权</p>
           </div>
           <div className={styles.quickActions}>
-            <button onClick={() => setSelected([data.monthSeries[0]?.month, DOMINANT_KEY].filter(Boolean) as string[])}>最近月 + 主力</button>
+            <button onClick={() => setSelected([currentMonth, DOMINANT_KEY].filter(Boolean) as string[])}>最近月 + 主力</button>
             <button onClick={() => setSelected([...data.monthSeries.map(item => item.month), DOMINANT_KEY])}>全部口径</button>
           </div>
         </div>
