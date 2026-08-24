@@ -52,8 +52,6 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
           return [
             `${label} · ${formatValue(point.v)}`,
             `<span style="color:#999">${point.instance}</span>`,
-            `${point.leg1}：${formatValue(point.leg1Price)}`,
-            `${point.leg2}：${formatValue(point.leg2Price)}`,
           ].join('<br/>')
         },
       },
