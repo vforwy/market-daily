@@ -24,3 +24,7 @@ test('spreadMonthColor is stable when the selected contract set changes', () => 
   assert.notEqual(spreadMonthColor('202611'), spreadMonthColor('202612'))
   assert.notEqual(spreadMonthColor('202611'), spreadMonthColor('202711'))
 })
+
+test('spreadMonthColor uses the comma-separated HSL syntax supported by zrender', () => {
+  assert.match(spreadMonthColor('202611'), /^hsl\(\d+, 68%, 62%\)$/)
+})

@@ -13,7 +13,7 @@ export function spreadMonthColor(monthKey: string): string {
   if (month < 1 || month > 12) return FALLBACK_MONTH_COLOR
   const monthIndex = year * 12 + month - 1
   const hue = Math.round((monthIndex * GOLDEN_ANGLE) % 360)
-  return `hsl(${hue} 68% 62%)`
+  return `hsl(${hue}, 68%, 62%)`
 }
 
 export function defaultSpreadMonth(
