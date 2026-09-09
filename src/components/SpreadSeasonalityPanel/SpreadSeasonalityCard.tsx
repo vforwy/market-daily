@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { echarts } from '../../lib/echarts'
+import { pointAtMonthDay } from '../../lib/seasonalTooltip'
 import type { SpreadSeasonalChart, SpreadSeasonalPoint } from '../../api'
 import styles from './SpreadSeasonalityPanel.module.css'
 
@@ -22,23 +23,6 @@ interface TooltipRow {
 interface Props {
   item: SpreadSeasonalChart
   years: number[]
-}
-
-function dayNumber(monthDay: string): number {
-  const [month, day] = monthDay.split('-').map(Number)
-  return Date.UTC(2000, month - 1, day) / 86_400_000
-}
-
-function nearestPoint(points: SpreadSeasonalPoint[], x: string): SpreadSeasonalPoint | null {
-  if (!points.length) return null
-  const exact = points.find(point => point.x === x)
-  if (exact) return exact
-  const target = dayNumber(x)
-  return points.reduce((best, point) => {
-    const bestDistance = Math.abs(dayNumber(best.x) - target)
-    const distance = Math.abs(dayNumber(point.x) - target)
-    return distance < bestDistance ? point : best
-  }, points[0])
 }
 
 function fmt(value: number | null | undefined): string {
@@ -120,7 +104,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
           const x = rows[0]?.axisValue ?? rows[0]?.data?.point?.x ?? ''
           let html = `<div style="color:#777;font-size:11px;margin-bottom:4px">${x}</div>`
           orderedYears.forEach((year, index) => {
-            const point = nearestPoint(pointsByYear.get(year) ?? [], x)
+            const point = pointAtMonthDay(pointsByYear.get(year) ?? [], x)
             if (!point) return
             const color = YEAR_STYLES[index]?.color ?? YEAR_STYLES[0].color
             html += `<div style="white-space:nowrap;margin-bottom:1px">`

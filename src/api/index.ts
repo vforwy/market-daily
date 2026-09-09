@@ -1,3 +1,5 @@
+import { RetryablePromiseCache } from '../lib/retryablePromiseCache'
+
 export interface Bar {
   d: string
   o: number
@@ -238,86 +240,74 @@ export interface CrapsSnapshot {
   articles: CrapsArticle[]
 }
 
-let snapshotPromise: Promise<StaticSnapshot> | null = null
-let crapsPromise: Promise<CrapsSnapshot> | null = null
-let crossSpreadOverviewPromise: Promise<CrossSpreadOverviewResponse> | null = null
-const spreadPromises = new Map<string, Promise<StaticSpreadPayload>>()
-const klinePromises = new Map<string, Promise<StaticVarietyKlines>>()
-const crossSpreadDetailPromises = new Map<string, Promise<CrossSpreadDetailResponse>>()
+const snapshotPromises = new RetryablePromiseCache<string, StaticSnapshot>()
+const crapsPromises = new RetryablePromiseCache<string, CrapsSnapshot>()
+const spreadPromises = new RetryablePromiseCache<string, StaticSpreadPayload>()
+const klinePromises = new RetryablePromiseCache<string, StaticVarietyKlines>()
+const crossSpreadOverviewPromises = new RetryablePromiseCache<string, CrossSpreadOverviewResponse>()
+const crossSpreadDetailPromises = new RetryablePromiseCache<string, CrossSpreadDetailResponse>()
 
 function loadSnapshot(): Promise<StaticSnapshot> {
-  if (!snapshotPromise) {
+  return snapshotPromises.get('snapshot', () => {
     const url = `${import.meta.env.BASE_URL}data/snapshot.json`
-    snapshotPromise = fetch(url).then(async response => {
+    return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`静态数据加载失败 (${response.status})`)
       return response.json() as Promise<StaticSnapshot>
     })
-  }
-  return snapshotPromise
+  })
 }
 
 function loadSpreads(variety: string): Promise<StaticSpreadPayload> {
   const key = variety.toUpperCase()
-  let promise = spreadPromises.get(key)
-  if (!promise) {
+  return spreadPromises.get(key, () => {
     const url = `${import.meta.env.BASE_URL}data/spreads/${encodeURIComponent(key)}.json`
-    promise = fetch(url).then(async response => {
+    return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`价差数据加载失败 (${response.status})`)
       return response.json() as Promise<StaticSpreadPayload>
     })
-    spreadPromises.set(key, promise)
-  }
-  return promise
+  })
 }
 
 function loadVarietyKlines(variety: string): Promise<StaticVarietyKlines> {
   const key = variety.toUpperCase()
-  let promise = klinePromises.get(key)
-  if (!promise) {
+  return klinePromises.get(key, () => {
     const url = `${import.meta.env.BASE_URL}data/klines/${encodeURIComponent(key)}.json`
-    promise = fetch(url).then(async response => {
+    return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`合约 K 线数据加载失败 (${response.status})`)
       return response.json() as Promise<StaticVarietyKlines>
     })
-    klinePromises.set(key, promise)
-  }
-  return promise
+  })
 }
 
 function loadCraps(): Promise<CrapsSnapshot> {
-  if (!crapsPromise) {
+  return crapsPromises.get('craps', () => {
     const url = `${import.meta.env.BASE_URL}data/craps.json`
-    crapsPromise = fetch(url).then(async response => {
+    return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`Craps 静态索引加载失败 (${response.status})`)
       return response.json() as Promise<CrapsSnapshot>
     })
-  }
-  return crapsPromise
+  })
 }
 
 function loadCrossSpreadOverview(): Promise<CrossSpreadOverviewResponse> {
-  if (!crossSpreadOverviewPromise) {
+  return crossSpreadOverviewPromises.get('overview', () => {
     const url = `${import.meta.env.BASE_URL}data/cross-spreads/overview.json`
-    crossSpreadOverviewPromise = fetch(url).then(async response => {
+    return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`跨品种价差数据加载失败 (${response.status})`)
       return response.json() as Promise<CrossSpreadOverviewResponse>
     })
-  }
-  return crossSpreadOverviewPromise
+  })
 }
 
 function loadCrossSpreadDetail(code: string): Promise<CrossSpreadDetailResponse> {
   const key = code.toUpperCase()
-  let promise = crossSpreadDetailPromises.get(key)
-  if (!promise) {
+  return crossSpreadDetailPromises.get(key, () => {
     const url = `${import.meta.env.BASE_URL}data/cross-spreads/${encodeURIComponent(key)}.json`
-    promise = fetch(url).then(async response => {
+    return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`跨品种价差详情加载失败 (${response.status})`)
       return response.json() as Promise<CrossSpreadDetailResponse>
     })
-    crossSpreadDetailPromises.set(key, promise)
-  }
-  return promise
+  })
 }
 
 function varietyFromCode(code: string): string {
