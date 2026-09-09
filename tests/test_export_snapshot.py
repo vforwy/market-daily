@@ -50,6 +50,12 @@ class FakeClient:
 
 
 class ExportSnapshotTest(unittest.TestCase):
+    def test_pages_export_has_no_public_account_payload(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+
+        self.assertNotIn("/api/articles/", source)
+        self.assertNotIn("craps.json", source)
+
     def test_export_spreads_includes_fixed_contract_payload(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output = Path(temp_dir) / "spreads"

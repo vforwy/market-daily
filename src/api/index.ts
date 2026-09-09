@@ -216,32 +216,7 @@ interface StaticVarietyKlines extends KLineOptionsResponse {
   contracts: Record<string, Bar[]>
 }
 
-export interface CrapsAccount {
-  id: number
-  accountName: string
-  starred: number
-}
-
-export interface CrapsArticle {
-  articleId: number
-  title: string
-  url: string
-  publishTime: string | null
-  accountId: number | null
-  accountName: string
-}
-
-export interface CrapsSnapshot {
-  meta: {
-    generatedAt: string
-    total: number
-  }
-  accounts: CrapsAccount[]
-  articles: CrapsArticle[]
-}
-
 const snapshotPromises = new RetryablePromiseCache<string, StaticSnapshot>()
-const crapsPromises = new RetryablePromiseCache<string, CrapsSnapshot>()
 const spreadPromises = new RetryablePromiseCache<string, StaticSpreadPayload>()
 const klinePromises = new RetryablePromiseCache<string, StaticVarietyKlines>()
 const crossSpreadOverviewPromises = new RetryablePromiseCache<string, CrossSpreadOverviewResponse>()
@@ -275,16 +250,6 @@ function loadVarietyKlines(variety: string): Promise<StaticVarietyKlines> {
     return fetch(url).then(async response => {
       if (!response.ok) throw new Error(`合约 K 线数据加载失败 (${response.status})`)
       return response.json() as Promise<StaticVarietyKlines>
-    })
-  })
-}
-
-function loadCraps(): Promise<CrapsSnapshot> {
-  return crapsPromises.get('craps', () => {
-    const url = `${import.meta.env.BASE_URL}data/craps.json`
-    return fetch(url).then(async response => {
-      if (!response.ok) throw new Error(`Craps 静态索引加载失败 (${response.status})`)
-      return response.json() as Promise<CrapsSnapshot>
     })
   })
 }
@@ -332,7 +297,6 @@ function sliceBatch(batch: BatchKlines, days: number): BatchKlines {
 
 export const api = {
   meta: async () => (await loadSnapshot()).meta,
-  craps: loadCraps,
   commodityConfig: async () => (await loadSnapshot()).commodityConfig,
   termStructureMatrix: async () => (await loadSnapshot()).termStructureMatrix,
   termStructure: async (variety: string): Promise<TermStructureSingle> => {

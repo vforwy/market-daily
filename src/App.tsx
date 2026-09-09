@@ -15,7 +15,7 @@ export default function App() {
       {activeTab === 'commodities' ? (
         <Commodities />
       ) : (
-        <Suspense fallback={<div className="snapshotError">加载 Craps 静态索引中...</div>}>
+        <Suspense fallback={<div className="snapshotError">加载 Craps 栏目中...</div>}>
           <Craps />
         </Suspense>
       )}
