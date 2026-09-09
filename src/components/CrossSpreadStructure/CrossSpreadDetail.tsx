@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   api,
   type CrossSpreadDetailResponse,
   type CrossSpreadPoint,
 } from '../../api'
 import { echarts } from '../../lib/echarts'
+import { usePersistentState } from '../../hooks/usePersistentState'
 import { defaultSpreadMonth, spreadMonthColor } from '../../lib/spreadMonths'
 import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
@@ -248,8 +249,9 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
 
 function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) {
   const currentMonth = defaultSpreadMonth(data.structure, data.monthSeries)
-  const [selected, setSelected] = useState<string[]>(
-    () => [currentMonth, DOMINANT_KEY].filter(Boolean) as string[],
+  const [selected, setSelected] = usePersistentState<string[]>(
+    `fom:cross-spread-selected:${data.code}`,
+    [currentMonth, DOMINANT_KEY].filter(Boolean) as string[],
   )
 
   const toggle = (key: string) => {
