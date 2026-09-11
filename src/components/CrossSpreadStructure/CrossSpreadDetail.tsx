@@ -164,7 +164,7 @@ function AdjustedSeasonalChart({ data }: { data: CrossSpreadDetailResponse }) {
     if (!elRef.current) return
     if (!chartRef.current) chartRef.current = echarts.init(elRef.current)
     const latestYear = yearlySeries.at(-1)?.year
-    const palette = ['#636d78', '#787f88', '#708ead', '#8b7eb8', '#18a0ff']
+    const historicalColors = ['#f0ad4e', '#b279d6', '#35b779', '#ef6f6c', '#8f9df4', '#d6c562']
     chartRef.current.setOption({
       backgroundColor: 'transparent',
       animation: false,
@@ -225,13 +225,13 @@ function AdjustedSeasonalChart({ data }: { data: CrossSpreadDetailResponse }) {
       },
       series: yearlySeries.map((series, index) => {
         const isLatest = series.year === latestYear
-        const color = palette[Math.max(0, palette.length - yearlySeries.length + index)]
+        const color = isLatest ? '#18a0ff' : historicalColors[index % historicalColors.length]
         return {
           name: series.year,
           type: 'line',
           showSymbol: false,
           connectNulls: false,
-          lineStyle: { color, width: isLatest ? 2.4 : 1.35, opacity: isLatest ? 1 : .78 },
+          lineStyle: { color, width: isLatest ? 2.8 : 1.8, opacity: isLatest ? 1 : .95 },
           itemStyle: { color },
           data: series.points.map(point => ({
             value: [`2000-${point.d.slice(5)}`, point.v],
