@@ -273,6 +273,12 @@
   background: var(--bg-surface);
 }
 
+.topCharts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .sectionTitleRow {
   min-height: 44px;
   padding: 8px 12px 4px;
@@ -305,6 +311,7 @@
 }
 
 .structureChart { height: 300px; }
+.seasonalChart { height: 300px; }
 .historyChart { height: 430px; }
 
 .contractPicker {
@@ -367,6 +374,7 @@
   }
   .toolbarControls { flex-wrap: wrap; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topCharts { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -376,5 +384,6 @@
   .card { height: 250px; }
   .detailWrap { padding: 10px; }
   .structureChart { height: 260px; }
+  .seasonalChart { height: 260px; }
   .historyChart { height: 360px; }
 }

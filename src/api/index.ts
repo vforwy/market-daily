@@ -179,6 +179,11 @@ export interface CrossSpreadStructurePoint extends CrossSpreadLatestPoint {
   label: string
 }
 
+export interface CrossSpreadStructureHistory {
+  date: string
+  points: CrossSpreadStructurePoint[]
+}
+
 export interface CrossSpreadMonthSeries {
   month: string
   label: string
@@ -192,8 +197,11 @@ export interface CrossSpreadDetailResponse {
   formulaLabel: string
   latestDate: string
   structure: CrossSpreadStructurePoint[]
+  structureHistory?: CrossSpreadStructureHistory[]
   monthSeries: CrossSpreadMonthSeries[]
   dominantSeries: CrossSpreadPoint[]
+  adjustedDominantSeries?: CrossSpreadPoint[]
+  adjustedDominantPriceBasis?: 'forward_adjusted_close'
 }
 
 type StaticSpreadPayload = Record<SpreadPriceMode, SpreadSeasonalResponse> & {
