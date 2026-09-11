@@ -50,7 +50,8 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
     const pointMaps = new Map(
       history.map(item => [item.date, new Map(item.points.map(point => [point.label, point]))]),
     )
-    const colors = ['#47515c', '#596b7c', '#68849c', '#599bd0', '#18a0ff']
+    const latestDate = history.at(-1)?.date
+    const historicalColors = ['#8f9aa7', '#f0ad4e', '#b279d6', '#35b779']
     chartRef.current.setOption({
       backgroundColor: 'transparent',
       animation: false,
@@ -64,6 +65,7 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
         itemHeight: 8,
         textStyle: { color: '#aaa', fontSize: 10 },
         data: history.map(item => item.date),
+        formatter: (name: string) => name === latestDate ? `${name} 当日` : name,
       },
       tooltip: {
         trigger: 'axis',
@@ -77,7 +79,7 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
           const lines = params.map(param => {
             const point = pointMaps.get(param.seriesName)?.get(label)
             return [
-              `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${param.color};margin-right:5px"></span>${param.seriesName}：${formatValue(point?.v)}`,
+              `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${param.color};margin-right:5px"></span>${param.seriesName}${param.seriesName === latestDate ? '（当日）' : ''}：${formatValue(point?.v)}`,
               point?.instance ? `<span style="color:#888">${point.instance}</span>` : '',
             ].filter(Boolean).join('<br/>')
           })
@@ -103,14 +105,15 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
       },
       series: history.map((item, index) => {
         const isLatest = index === history.length - 1
-        const color = colors[Math.max(0, colors.length - history.length + index)]
+        const color = isLatest ? '#18a0ff' : historicalColors[index % historicalColors.length]
         return {
           name: item.date,
           type: 'line',
           symbol: isLatest ? 'circle' : 'none',
-          symbolSize: 6,
+          symbolSize: isLatest ? 8 : 5,
           connectNulls: false,
-          lineStyle: { color, width: isLatest ? 2.4 : 1.4, opacity: isLatest ? 1 : .82 },
+          z: isLatest ? 3 : 1,
+          lineStyle: { color, width: isLatest ? 3 : 1.7, opacity: isLatest ? 1 : .92 },
           itemStyle: { color },
           data: labels.map(label => [label, pointMaps.get(item.date)?.get(label)?.v ?? null]),
           markLine: isLatest ? {
