@@ -347,12 +347,6 @@
   color: #8bc9f5;
 }
 
-.contractPicker button.dominantChoice.contractSelected {
-  border-color: #8a6b37;
-  background: rgba(240, 173, 78, .1);
-  color: #dfb96f;
-}
-
 .chartEmpty {
   height: 260px;
   display: grid;

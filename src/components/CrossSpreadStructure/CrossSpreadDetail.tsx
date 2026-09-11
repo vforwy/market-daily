@@ -12,7 +12,6 @@ import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
 
-const DOMINANT_KEY = 'dominant'
 const DOMINANT_COLOR = '#f0ad4e'
 
 interface TooltipParam {
@@ -269,15 +268,12 @@ function AdjustedSeasonalChart({ data }: { data: CrossSpreadDetailResponse }) {
 function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; selected: string[] }) {
   const elRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
-  const selectedSeries = useMemo(() => {
-    const fixed = data.monthSeries
+  const selectedSeries = useMemo(
+    () => data.monthSeries
       .filter(series => selected.includes(series.month))
-      .map(series => ({ key: series.month, label: series.label, points: series.points }))
-    if (selected.includes(DOMINANT_KEY)) {
-      fixed.push({ key: DOMINANT_KEY, label: '主力未复权', points: data.dominantSeries })
-    }
-    return fixed
-  }, [data.dominantSeries, data.monthSeries, selected])
+      .map(series => ({ key: series.month, label: series.label, points: series.points })),
+    [data.monthSeries, selected],
+  )
   const dates = useMemo(
     () => tradingDates(selectedSeries.map(series => series.points)),
     [selectedSeries],
@@ -356,9 +352,7 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
         },
       ],
       series: selectedSeries.map((series, index) => {
-        const color = series.key === DOMINANT_KEY
-          ? DOMINANT_COLOR
-          : spreadMonthColor(series.key)
+        const color = spreadMonthColor(series.key)
         return {
           name: series.label,
           type: 'line',
@@ -366,8 +360,8 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
           sampling: 'lttb',
           connectNulls: false,
           lineStyle: {
-            width: series.key === DOMINANT_KEY ? 1.8 : 2,
-            type: series.key === DOMINANT_KEY ? 'dashed' : 'solid',
+            width: 2,
+            type: 'solid',
             color,
           },
           itemStyle: { color },
@@ -402,8 +396,9 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
   const currentMonth = defaultSpreadMonth(data.structure, data.monthSeries)
   const [selected, setSelected] = usePersistentState<string[]>(
     `fom:cross-spread-selected:${data.code}`,
-    [currentMonth, DOMINANT_KEY].filter(Boolean) as string[],
+    [currentMonth].filter(Boolean) as string[],
   )
+  const selectedMonths = selected.filter(key => data.monthSeries.some(series => series.month === key))
 
   const toggle = (key: string) => {
     setSelected(current => current.includes(key)
@@ -456,11 +451,11 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
         <div className={styles.sectionTitleRow}>
           <div>
             <h3>历史走势</h3>
-            <p>固定年月互不拼接；主力换月不复权</p>
+            <p>固定年月合约独立展示，互不拼接</p>
           </div>
           <div className={styles.quickActions}>
-            <button onClick={() => setSelected([currentMonth, DOMINANT_KEY].filter(Boolean) as string[])}>最近月 + 主力</button>
-            <button onClick={() => setSelected([...data.monthSeries.map(item => item.month), DOMINANT_KEY])}>全部口径</button>
+            <button onClick={() => setSelected([currentMonth].filter(Boolean) as string[])}>最近月</button>
+            <button onClick={() => setSelected(data.monthSeries.map(item => item.month))}>全部月份</button>
           </div>
         </div>
         <div className={styles.contractPicker}>
@@ -469,7 +464,7 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
             return (
               <button
                 key={series.month}
-                className={selected.includes(series.month) ? styles.contractSelected : ''}
+                className={selectedMonths.includes(series.month) ? styles.contractSelected : ''}
                 onClick={() => toggle(series.month)}
               >
                 <i aria-hidden="true" className={styles.contractColorDot} style={{ backgroundColor: color }} />
@@ -477,16 +472,9 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
               </button>
             )
           })}
-          <button
-            className={`${styles.dominantChoice} ${selected.includes(DOMINANT_KEY) ? styles.contractSelected : ''}`}
-            onClick={() => toggle(DOMINANT_KEY)}
-          >
-            <i aria-hidden="true" className={styles.contractColorDot} style={{ backgroundColor: DOMINANT_COLOR }} />
-            主力未复权
-          </button>
         </div>
-        {selected.length
-          ? <HistoryChart data={data} selected={selected} />
+        {selectedMonths.length
+          ? <HistoryChart data={data} selected={selectedMonths} />
           : <div className={styles.chartEmpty}>请选择至少一个合约口径</div>}
       </section>
     </div>
