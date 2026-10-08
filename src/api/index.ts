@@ -135,6 +135,7 @@ export interface FixedContractSpreadResponse {
   dominantCode: string
   priceBasis: 'raw_settle'
   charts: FixedContractSpreadChart[]
+  selectableCharts?: FixedContractSpreadChart[]
 }
 
 export interface CrossSpreadPoint {

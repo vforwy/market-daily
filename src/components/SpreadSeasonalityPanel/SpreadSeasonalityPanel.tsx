@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api, type SpreadSeasonalChart } from '../../api'
 import FixedContractSpreadCard from './FixedContractSpreadCard'
+import FixedContractSpreadExplorer from './FixedContractSpreadExplorer'
 import SpreadSeasonalityCard from './SpreadSeasonalityCard'
 import styles from './SpreadSeasonalityPanel.module.css'
 
@@ -23,9 +24,10 @@ export default function SpreadSeasonalityPanel({ variety }: Props) {
   })
 
   const fixedCharts = fixedData?.charts ?? []
+  const selectableCharts = fixedData?.selectableCharts ?? []
   const specialSpreads = seasonalData?.specialSpreads ?? []
   const isLoading = fixedLoading || seasonalLoading
-  const hasSpreads = fixedCharts.length > 0 || specialSpreads.length > 0
+  const hasSpreads = fixedCharts.length > 0 || selectableCharts.length > 0 || specialSpreads.length > 0
 
   const renderGrid = (items: SpreadSeasonalChart[], className = styles.grid) => (
     <div className={className}>
@@ -66,6 +68,14 @@ export default function SpreadSeasonalityPanel({ variety }: Props) {
                 ))}
               </div>
             </section>
+          )}
+          {selectableCharts.length > 0 && (
+            <FixedContractSpreadExplorer
+              key={variety}
+              variety={variety}
+              charts={selectableCharts}
+              dominantCode={fixedData?.dominantCode ?? ''}
+            />
           )}
           {specialSpreads.length > 0 && (
             <section className={styles.group}>

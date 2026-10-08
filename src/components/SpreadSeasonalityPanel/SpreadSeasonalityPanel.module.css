@@ -74,6 +74,52 @@
   font-weight: 700;
 }
 
+.explorerToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.explorerToolbar .groupHeader {
+  padding: 0;
+}
+
+.nearLegSelector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.nearLegSelect {
+  min-width: 160px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.nearLegSelect:focus-visible {
+  outline: 1px solid var(--accent);
+}
+
+.explorerNote {
+  padding-bottom: 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.explorer .card {
+  height: 420px;
+}
+
 .grid,
 .monthlyGrid {
   display: grid;
@@ -135,6 +181,10 @@
 }
 
 @media (max-width: 760px) {
+  .explorer .card {
+    height: 360px;
+  }
+
   .sectionHeader {
     align-items: flex-start;
     flex-direction: column;

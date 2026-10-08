@@ -41,6 +41,10 @@ class FakeClient:
                 "variety": "JD",
                 "historyStart": "2026-01-01",
                 "charts": [{"nearCode": "JD2608.DCE", "series": []}],
+                "selectableCharts": [{
+                    "nearCode": "JD2601.DCE",
+                    "series": [{"farCode": "JD2602.DCE", "points": [{"d": "2026-01-05", "v": 100}]}],
+                }],
             })
         return FakeResponse({
             "spreads": [{"spreadCode": "JD_L1_L2", "seriesByYear": {}}],
@@ -64,6 +68,9 @@ class ExportSnapshotTest(unittest.TestCase):
 
         self.assertEqual(payload["fixedContract"]["historyStart"], "2026-01-01")
         self.assertEqual(payload["fixedContract"]["charts"][0]["nearCode"], "JD2608.DCE")
+        historical = payload["fixedContract"]["selectableCharts"][0]
+        self.assertEqual(historical["nearCode"], "JD2601.DCE")
+        self.assertEqual(historical["series"][0]["points"], [{"d": "2026-01-05", "v": 100}])
         self.assertEqual(payload["raw"]["monthlySpreads"], [])
         self.assertEqual(payload["raw"]["spreads"], [])
         self.assertEqual(payload["raw"]["specialSpreads"][0]["spreadCode"], "JD_01_05")
