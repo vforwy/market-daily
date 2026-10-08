@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 import { crossSpreadDisplayName } from '../components/CrossSpreadStructure/display'
 import SubTabBar, { type SubTabItem } from '../components/Layout/SubTabBar'
 import { usePersistentState } from '../hooks/usePersistentState'
@@ -27,6 +27,7 @@ interface SelectTarget { code: string; name: string }
 export default function Commodities() {
   const [activeTab, setActiveTab] = usePersistentState('fom:commodity-active-tab', 'charts')
   const [detailTabs, setDetailTabs] = usePersistentState<DetailTab[]>('fom:commodity-detail-tabs', [])
+  const chartGridScrollPositionRef = useRef(0)
 
   useEffect(() => {
     const validTabs = new Set([...BASE_TABS.map(tab => tab.id), ...detailTabs.map(tab => tab.id)])
@@ -85,7 +86,7 @@ export default function Commodities() {
       <div className={styles.content}>
         {activeTab === 'charts' && (
           <Suspense fallback={<div className={styles.empty}>加载K线图中...</div>}>
-            <ChartGrid onSelect={openContractDetail} />
+            <ChartGrid onSelect={openContractDetail} scrollPositionRef={chartGridScrollPositionRef} />
           </Suspense>
         )}
         {activeTab === 'termStructure' && (

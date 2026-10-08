@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useLayoutEffect, useRef, type RefObject } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { api } from '../../api'
 import type { CommodityConfigItem, KLineEntry, KlineBatchKind } from '../../api'
@@ -16,6 +16,7 @@ const DAYS_OPTIONS = [
 
 interface Props {
   onSelect: (target: { code: string; name: string; klineKind?: KlineBatchKind }) => void
+  scrollPositionRef: RefObject<number>
 }
 
 function varietyFromCode(code: string): string {
@@ -23,7 +24,8 @@ function varietyFromCode(code: string): string {
   return match?.[1] ?? code.split('.')[0].toUpperCase()
 }
 
-export default function ChartGrid({ onSelect }: Props) {
+export default function ChartGrid({ onSelect, scrollPositionRef }: Props) {
+  const gridRef = useRef<HTMLDivElement>(null)
   const [days, setDays] = usePersistentState('fom:chart-grid-days', 90)
   const [klineKind, setKlineKind] = usePersistentState<KlineBatchKind>(
     'fom:chart-grid-kline-kind',
@@ -48,6 +50,13 @@ export default function ChartGrid({ onSelect }: Props) {
     staleTime: MANUAL_REFRESH_STALE_TIME,
   })
   const isLoading = isBatchLoading || isConfigLoading
+
+  useLayoutEffect(() => {
+    // The parent keeps this position while detail tabs unmount the grid.
+    if (!isLoading && gridRef.current) {
+      gridRef.current.scrollTop = scrollPositionRef.current
+    }
+  }, [isLoading, scrollPositionRef])
 
   const dataByVariety = new Map<string, { code: string; entry: KLineEntry }>()
   Object.entries(data).forEach(([key, entry]) => {
@@ -114,7 +123,15 @@ export default function ChartGrid({ onSelect }: Props) {
       {isLoading ? (
         <div className={styles.state}>加载中...</div>
       ) : (
-        <div className={styles.grid}>
+        <div
+          ref={gridRef}
+          className={styles.grid}
+          role="region"
+          aria-label="K线品种列表"
+          onScroll={event => {
+            scrollPositionRef.current = event.currentTarget.scrollTop
+          }}
+        >
           {cards.map((row, idx) => {
             const prevItem = cards[idx - 1]?.item
             const prevCate = prevItem?.cate ?? ''
@@ -147,6 +164,9 @@ export default function ChartGrid({ onSelect }: Props) {
                     bars={row.entry?.bars ?? []}
                     changePct={row.entry?.change_pct}
                     onOpen={() => {
+                      if (gridRef.current) {
+                        scrollPositionRef.current = gridRef.current.scrollTop
+                      }
                       const variety = row.item?.code ?? varietyFromCode(row.code)
                       if (klineKind === 'dominant_continuous') {
                         window.localStorage.setItem(
