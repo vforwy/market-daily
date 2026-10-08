@@ -100,7 +100,7 @@ def export_klines(client, output_dir: Path, varieties: list[str]) -> dict:
 
 
 def export_spreads(client, output_dir: Path, varieties: list[str]) -> dict:
-    """Export special seasonal spreads and the 2026+ fixed-contract 3x5 curves."""
+    """Export special seasonal spreads and the 2026+ fixed-contract 4x5 curves."""
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True)
