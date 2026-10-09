@@ -56,7 +56,7 @@ export default function SpreadSeasonalityPanel({ variety }: Props) {
           {fixedCharts.length > 0 && (
             <section className={styles.group}>
               <div className={styles.groupHeader}>
-                固定合约月差（{fixedData?.historyStart.slice(0, 4)}年以来）
+                固定合约月差（{fixedData?.historyStart.slice(0, 4)}年以来） · 未复权收盘价
               </div>
               <div className={styles.monthlyGrid}>
                 {fixedCharts.map(item => (

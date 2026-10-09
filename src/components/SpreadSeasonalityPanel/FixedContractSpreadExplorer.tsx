@@ -39,7 +39,7 @@ export default function FixedContractSpreadExplorer({ variety, charts, dominantC
           </select>
         </label>
       </div>
-      <div className={styles.explorerNote}>选择上方图组之前的历史近月合约 · 近月－后续最多 5 个远月 · 结算价口径</div>
+      <div className={styles.explorerNote}>选择上方图组之前的历史近月合约 · 近月－后续最多 5 个远月 · 未复权收盘价口径</div>
       {selectedChart && (
         <FixedContractSpreadCard item={selectedChart} dominantCode={dominantCode} />
       )}

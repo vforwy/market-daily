@@ -165,7 +165,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
       </div>
       {item.seasonAxis === 'delivery-year' && (
         <div className={styles.seasonNote}>
-          {window ? seasonalWindowLabel(window) : '固定合约历史'} · 固定合约对{item.priceBasis === 'raw_settle' ? ' · 原始结算价' : ''}
+          {window ? seasonalWindowLabel(window) : '固定合约历史'} · 固定合约对{item.priceBasis === 'raw_close' ? ' · 未复权收盘价' : ''}
         </div>
       )}
       <div ref={elRef} className={styles.chart} />

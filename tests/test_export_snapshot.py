@@ -32,18 +32,20 @@ class FakeClient:
         if path == "/api/cross-spreads/overview":
             return FakeResponse({
                 "latestDate": "2026-07-20",
-                "charts": [{"code": "LU_FU", "name": "LU-FU"}],
+                "charts": [{"code": "LU_FU", "name": "LU-FU", "priceBasis": "raw_close"}],
             })
         if path == "/api/cross-spreads/LU_FU":
             return FakeResponse({
                 "code": "LU_FU",
                 "name": "LU-FU",
+                "priceBasis": "raw_close",
                 "monthSeries": [],
                 "dominantSeries": [],
             })
         if path.startswith("/api/spreads/fixed-contract"):
             return FakeResponse({
                 "variety": "JD",
+                "priceBasis": "raw_close",
                 "historyStart": "2026-01-01",
                 "charts": [{"nearCode": "JD2608.DCE", "series": []}],
                 "selectableCharts": [{
@@ -54,7 +56,7 @@ class FakeClient:
         return FakeResponse({
             "spreads": [{"spreadCode": "JD_L1_L2", "seriesByYear": {}}],
             "monthlySpreads": [{"spreadCode": "JD_L1_L2", "seriesByYear": {}}],
-            "specialSpreads": [{"spreadCode": "JD_01_05", "seriesByYear": {}}],
+            "specialSpreads": [{"spreadCode": "JD_01_05", "priceBasis": "raw_close", "seriesByYear": {}}],
         })
 
 
@@ -106,7 +108,7 @@ class ExportSnapshotTest(unittest.TestCase):
         info = {"instance": "JD2601-JD2605", "leg1": "JD2601.DCE", "leg2": "JD2605.DCE",
                 "firstDate": points[0]["d"], "lastDate": points[-1]["d"], "pointCount": len(points)}
         chart = {"seasonAxis": "delivery-year", "seriesByYear": {"2026": points},
-                 "seriesMetaByYear": {"2026": info}}
+                 "priceBasis": "raw_close", "seriesMetaByYear": {"2026": info}}
         payload = {"spreads": [copy.deepcopy(chart)], "monthlySpreads": [copy.deepcopy(chart)],
                    "specialSpreads": [copy.deepcopy(chart)]}
         exported = MODULE.compact_spreads(payload)
@@ -163,6 +165,7 @@ class ExportSnapshotTest(unittest.TestCase):
             exported = json.loads((output.parent / "spreads/BU.json").read_text())
             for mode in ("raw", "adjusted"):
                 self.assertEqual(exported[mode]["specialSpreads"], [chart])
+                self.assertEqual(exported[mode]["specialSpreads"][0]["priceBasis"], "raw_close")
 
     def test_full_export_detail_failure_preserves_former_tree(self):
         from test_snapshot_contract import make_snapshot, tree_bytes
@@ -177,6 +180,33 @@ class ExportSnapshotTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "interrupted"):
                     MODULE.export_snapshot(root, target / "snapshot.json")
             self.assertEqual(tree_bytes(target), previous)
+
+    def test_full_export_rejects_settlement_spreads_without_replacing_existing_generation(self):
+        from test_snapshot_contract import delivery_seasonal_chart, make_snapshot, tree_bytes, write_json
+        from snapshot_contract import SnapshotValidationError
+
+        for kind in ("fixed", "special", "cross"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                source, target = root / "source", root / "data"
+                make_snapshot(source, "new")
+                make_snapshot(target, "old")
+                relative = "cross-spreads/LU_FU.json" if kind == "cross" else "spreads/BU.json"
+                payload = json.loads((source / relative).read_text())
+                if kind == "fixed":
+                    payload["fixedContract"]["priceBasis"] = "raw_settle"
+                elif kind == "special":
+                    chart = delivery_seasonal_chart()
+                    chart["priceBasis"] = "raw_settle"
+                    payload["adjusted"].update(years=[2026], specialSpreads=[chart])
+                else:
+                    payload["priceBasis"] = "raw_settle"
+                write_json(source / relative, payload)
+                previous = tree_bytes(target)
+                with patch.object(MODULE, "_source_client", return_value=CompleteSnapshotClient(source)):
+                    with self.assertRaises(SnapshotValidationError):
+                        MODULE.export_snapshot(root, target / "snapshot.json")
+                self.assertEqual(tree_bytes(target), previous)
 
     def test_view_export_rejects_symlinks_without_overwriting_external_targets(self):
         from test_snapshot_contract import make_snapshot, tree_bytes
@@ -216,6 +246,7 @@ class ExportSnapshotTest(unittest.TestCase):
             payload = json.loads((output / "JD.json").read_text(encoding="utf-8"))
 
         self.assertEqual(payload["fixedContract"]["historyStart"], "2026-01-01")
+        self.assertEqual(payload["fixedContract"]["priceBasis"], "raw_close")
         self.assertEqual(payload["fixedContract"]["charts"][0]["nearCode"], "JD2608.DCE")
         historical = payload["fixedContract"]["selectableCharts"][0]
         self.assertEqual(historical["nearCode"], "JD2601.DCE")
@@ -233,7 +264,9 @@ class ExportSnapshotTest(unittest.TestCase):
             detail = json.loads((output / "LU_FU.json").read_text(encoding="utf-8"))
 
         self.assertEqual(overview["charts"][0]["code"], "LU_FU")
+        self.assertEqual(overview["charts"][0]["priceBasis"], "raw_close")
         self.assertEqual(detail["code"], "LU_FU")
+        self.assertEqual(detail["priceBasis"], "raw_close")
         self.assertEqual(report["charts"], 1)
         self.assertEqual(report["details"], 1)
 

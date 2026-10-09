@@ -183,8 +183,8 @@ def _fixed_charts(charts, variety: str, latest: str, history_start: str, label: 
 
 def _delivery_seasonal(chart: dict, series: dict, variety: str, latest: str) -> None:
     """A year denotes one near-delivery-year pair, never a rolled trade-year series."""
-    _require(chart.get("spreadType") == "calendar_month" and chart.get("priceBasis") == "raw_settle",
-             "delivery seasonality must use calendar-month raw settlement pairs")
+    _require(chart.get("spreadType") == "calendar_month" and chart.get("priceBasis") == "raw_close",
+             "delivery seasonality must use calendar-month raw close pairs")
     near_month, far_month = chart.get("nearMonth"), chart.get("farMonth")
     for month in (near_month, far_month):
         _require(isinstance(month, str) and re.fullmatch(r"0[1-9]|1[0-2]", month) is not None,
@@ -266,7 +266,7 @@ def _spreads(payload: dict, variety: str, latest: str) -> tuple[int, int]:
                 _require(chart["seasonAxis"] == "delivery-year", "invalid seasonal axis basis")
                 _delivery_seasonal(chart, series, variety, latest)
     fixed = _object(payload.get("fixedContract"), f"{variety}.fixedContract")
-    _require(fixed.get("variety") == variety and fixed.get("priceBasis") == "raw_settle",
+    _require(fixed.get("variety") == variety and fixed.get("priceBasis") == "raw_close",
              f"{variety} fixed-contract identity or price basis mismatch")
     start = _date(fixed.get("historyStart"), f"{variety}.historyStart")
     charts = _list(fixed.get("charts"), f"{variety}.charts")
@@ -392,6 +392,7 @@ def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
         code = str(chart.get("code", ""))
         _require(re.fullmatch(r"[A-Z0-9_]+", code) is not None and code not in codes, "invalid or duplicate cross-spread code")
         codes.add(code)
+        _require(chart.get("priceBasis") == "raw_close", f"{code} cross-spread overview must use raw close prices")
         chart_latest = _date(chart.get("latestDate"), f"{code}.latestDate")
         _require(chart_latest <= latest, f"{code} overview date is in the future")
         for field in ("fixedSeries", "dominantSeries"):
@@ -399,6 +400,7 @@ def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
         detail = _read(data_dir / "cross-spreads" / f"{code}.json")
         _require(detail.get("code") == code and detail.get("latestDate") == chart_latest,
                  f"{code} detail identity/date mismatch")
+        _require(detail.get("priceBasis") == "raw_close", f"{code} cross-spread detail must use raw close prices")
         usable = False
         for field in ("dominantSeries", "adjustedDominantSeries"):
             _points(detail.get(field), f"{code}.{field}", chart_latest)

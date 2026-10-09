@@ -381,7 +381,7 @@ function LoadedCrossSpreadDetail({ data }: { data: CrossSpreadDetailResponse }) 
       <div className={styles.detailHeader}>
         <div>
           <div className={styles.detailTitle}>{crossSpreadDisplayName(data.name)}</div>
-          <div className={styles.detailMeta}>{data.group} · 同月/历史为原始结算价 · 季节图为主力前复权收盘价 · 数据日期 {data.latestDate}</div>
+          <div className={styles.detailMeta}>{data.group} · 同月/历史为未复权收盘价 · 季节图为主力前复权收盘价 · 数据日期 {data.latestDate}</div>
           <div className={styles.detailFormula}>
             <span>计算公式</span>
             <code>{data.formulaLabel}</code>

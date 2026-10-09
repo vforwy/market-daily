@@ -45,7 +45,7 @@ def make_snapshot(root, generation="old"):
     write_json(root / "spreads/BU.json", {
         "raw": seasonal, "adjusted": adjusted,
         "fixedContract": {
-            "variety": "BU", "priceBasis": "raw_settle", "historyStart": "2026-01-01",
+            "variety": "BU", "priceBasis": "raw_close", "historyStart": "2026-01-01",
             "latestDate": LATEST, "dominantCode": "BU2611.SHF", "selectableCharts": [],
             "charts": [{"nearCode": "BU2610.SHF", "series": [{
                 "farCode": "BU2611.SHF", "points": [{"d": LATEST, "v": 10, "nearPrice": 100, "farPrice": 90}],
@@ -54,11 +54,11 @@ def make_snapshot(root, generation="old"):
     })
     point = {"d": LATEST, "v": 10}
     write_json(root / "cross-spreads/overview.json", {
-        "latestDate": LATEST, "charts": [{"code": "LU_FU", "latestDate": LATEST,
+        "latestDate": LATEST, "charts": [{"code": "LU_FU", "latestDate": LATEST, "priceBasis": "raw_close",
                                           "fixedSeries": [point], "dominantSeries": []}],
     })
     write_json(root / "cross-spreads/LU_FU.json", {
-        "code": "LU_FU", "latestDate": LATEST, "monthSeries": [], "dominantSeries": [],
+        "code": "LU_FU", "latestDate": LATEST, "priceBasis": "raw_close", "monthSeries": [], "dominantSeries": [],
         "adjustedDominantSeries": [point], "structure": [], "structureHistory": [],
     })
     return {"generation": generation}
@@ -79,7 +79,7 @@ def delivery_seasonal_chart(year=2026, near_month="01", far_month="05", *, short
                "leg1": near, "leg2": far, "leg1Price": 100, "leg2Price": 90} for day in dates]
     return {
         "spreadCode": f"BU_{near_month}_{far_month}", "spreadType": "calendar_month",
-        "seasonAxis": "delivery-year", "priceBasis": "raw_settle",
+        "seasonAxis": "delivery-year", "priceBasis": "raw_close",
         "nearMonth": near_month, "farMonth": far_month, "farYearOffset": offset,
         "latestDate": dates[-1], "latestInstance": instance, "seriesByYear": {str(year): points},
         "seriesMetaByYear": {str(year): {"instance": instance, "leg1": near, "leg2": far,
@@ -127,6 +127,29 @@ class SnapshotValidationTest(unittest.TestCase):
             with self.subTest(year=year, near=near, short=short):
                 self.add_delivery_seasonality(delivery_seasonal_chart(year, near, far, short_codes=short), year)
                 contract.validate_snapshot(self.root)
+
+    def test_fixed_contract_rejects_settlement_price_basis(self):
+        self.mutate("spreads/BU.json", lambda p: p["fixedContract"].update(priceBasis="raw_settle"))
+        with self.assertRaisesRegex(contract.SnapshotValidationError, "price basis mismatch"):
+            contract.validate_snapshot(self.root)
+
+    def test_special_fixed_contracts_require_close_in_both_price_mode_slots(self):
+        for mode in ("raw", "adjusted"):
+            with self.subTest(mode=mode):
+                self.add_delivery_seasonality()
+                self.mutate("spreads/BU.json", lambda p: p[mode]["specialSpreads"][0].update(priceBasis="raw_settle"))
+                with self.assertRaisesRegex(contract.SnapshotValidationError, "raw close pairs"):
+                    contract.validate_snapshot(self.root)
+
+    def test_cross_spread_overview_and_detail_reject_settlement_price_basis(self):
+        cases = (("cross-spreads/overview.json", lambda p: p["charts"][0].update(priceBasis="raw_settle")),
+                 ("cross-spreads/LU_FU.json", lambda p: p.update(priceBasis="raw_settle")))
+        for relative, mutate in cases:
+            with self.subTest(relative=relative):
+                make_snapshot(self.root)
+                self.mutate(relative, mutate)
+                with self.assertRaisesRegex(contract.SnapshotValidationError, "must use raw close prices"):
+                    contract.validate_snapshot(self.root)
 
     def test_fixed_seasonal_metadata_and_pairing_cannot_hide_rolling_or_missing_quotes(self):
         cases = ("rolling", "wrong_year", "wrong_month", "wrong_instance", "wrong_first", "wrong_last", "wrong_count",

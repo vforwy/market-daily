@@ -100,7 +100,7 @@ export interface SpreadSeasonalChart {
   nearMonth?: string
   farMonth?: string
   farYearOffset?: 0 | 1
-  priceBasis?: 'raw_settle'
+  priceBasis?: 'raw_close'
   seriesMetaByYear?: Record<string, {
     instance: string
     leg1: string
@@ -147,7 +147,7 @@ export interface FixedContractSpreadResponse {
   latestDate: string
   historyStart: string
   dominantCode: string
-  priceBasis: 'raw_settle'
+  priceBasis: 'raw_close'
   charts: FixedContractSpreadChart[]
   selectableCharts?: FixedContractSpreadChart[]
 }
@@ -175,6 +175,7 @@ export interface CrossSpreadOverviewChart {
   code: string
   name: string
   group: string
+  priceBasis: 'raw_close'
   latestDate: string
   currentMonth: number | null
   currentMonthLabel: string
@@ -186,6 +187,7 @@ export interface CrossSpreadOverviewChart {
 
 export interface CrossSpreadOverviewResponse {
   latestDate: string
+  priceBasis: 'raw_close'
   charts: CrossSpreadOverviewChart[]
 }
 
@@ -209,6 +211,7 @@ export interface CrossSpreadDetailResponse {
   code: string
   name: string
   group: string
+  priceBasis: 'raw_close'
   formulaLabel: string
   latestDate: string
   structure: CrossSpreadStructurePoint[]
@@ -316,7 +319,7 @@ export const api = {
       latestDate: '',
       historyStart: '2026-01-01',
       dominantCode: '',
-      priceBasis: 'raw_settle',
+      priceBasis: 'raw_close',
       charts: [],
     }
   },
