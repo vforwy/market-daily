@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 
-from dotenv import load_dotenv
+from snapshot_contract import publish_snapshot
 
 
 def fetch_json(client, path: str):
@@ -159,14 +159,19 @@ def export_cross_spreads(client, output_dir: Path) -> dict:
     }
 
 
-def export_snapshot(source_root: Path, output: Path) -> dict:
+def _source_client(source_root: Path):
+    from dotenv import load_dotenv
+
     load_dotenv(source_root / ".env")
     os.environ["ACCESS_ANSWER"] = ""
     sys.path.insert(0, str(source_root / "backend"))
 
     from main import app  # pylint: disable=import-outside-toplevel
 
-    client = app.test_client()
+    return app.test_client()
+
+
+def _generate_snapshot(client, output: Path) -> dict:
     config = fetch_json(client, "/api/commodity-config")
     contract_batch = fetch_json(client, "/api/klines/batch?days=999&kind=contract")
     continuous_batch = fetch_json(client, "/api/klines/batch?days=999&kind=dominant_continuous")
@@ -210,6 +215,14 @@ def export_snapshot(source_root: Path, output: Path) -> dict:
         "spreads": spread_report,
         "crossSpreads": cross_spread_report,
     }
+
+
+def export_snapshot(source_root: Path, output: Path) -> dict:
+    if output.name != "snapshot.json":
+        raise ValueError("Public Snapshot output must be named snapshot.json")
+    client = _source_client(source_root)
+    report = publish_snapshot(output.parent, lambda stage: _generate_snapshot(client, stage / output.name))
+    return {**report, "output": str(output)}
 
 
 def main() -> int:

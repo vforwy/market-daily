@@ -2,10 +2,14 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import sys
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "export_snapshot.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("export_snapshot", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
@@ -53,7 +57,74 @@ class FakeClient:
         })
 
 
+class CompleteSnapshotClient:
+    def __init__(self, data_dir, fail_detail=False):
+        self.root = data_dir
+        self.fail_detail = fail_detail
+
+    def read(self, relative):
+        return json.loads((self.root / relative).read_text())
+
+    def get(self, url):
+        path = urlsplit(url).path
+        query = parse_qs(urlsplit(url).query)
+        snapshot = self.read("snapshot.json")
+        if path == "/api/commodity-config":
+            value = snapshot["commodityConfig"]
+        elif path == "/api/klines/batch":
+            value = snapshot["klineBatches"][query["kind"][0]]
+        elif path == "/api/term-structure/matrix":
+            value = snapshot["termStructureMatrix"]
+        elif path == "/api/kline/options":
+            kline = self.read("klines/BU.json")
+            value = {"options": kline["options"], "selected": kline["selected"]}
+        elif path == "/api/kline":
+            value = self.read("klines/BU.json")["contracts"][query["code"][0]]
+        elif path == "/api/spreads/seasonal":
+            value = self.read("spreads/BU.json")[query["priceMode"][0]]
+        elif path == "/api/spreads/fixed-contract":
+            value = self.read("spreads/BU.json")["fixedContract"]
+        elif path == "/api/cross-spreads/overview":
+            value = self.read("cross-spreads/overview.json")
+        elif path == "/api/cross-spreads/LU_FU":
+            if self.fail_detail:
+                raise RuntimeError("detail request interrupted")
+            value = self.read("cross-spreads/LU_FU.json")
+        else:
+            raise AssertionError(path)
+        return FakeResponse(value)
+
+
 class ExportSnapshotTest(unittest.TestCase):
+    def test_full_export_uses_validated_generation_and_reports_final_path(self):
+        from test_snapshot_contract import make_snapshot
+        from snapshot_contract import validate_snapshot
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / "source"
+            make_snapshot(source)
+            output = root / "data/snapshot.json"
+            with patch.object(MODULE, "_source_client", return_value=CompleteSnapshotClient(source)):
+                report = MODULE.export_snapshot(root, output)
+            self.assertEqual(report["output"], str(output))
+            self.assertEqual(report["varieties"], 1)
+            self.assertEqual(validate_snapshot(output.parent)["crossSpreads"], 1)
+
+    def test_full_export_detail_failure_preserves_former_tree(self):
+        from test_snapshot_contract import make_snapshot, tree_bytes
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source, target = root / "source", root / "data"
+            make_snapshot(source, "new")
+            make_snapshot(target, "old")
+            previous = tree_bytes(target)
+            with patch.object(MODULE, "_source_client", return_value=CompleteSnapshotClient(source, fail_detail=True)):
+                with self.assertRaisesRegex(RuntimeError, "interrupted"):
+                    MODULE.export_snapshot(root, target / "snapshot.json")
+            self.assertEqual(tree_bytes(target), previous)
+
     def test_pages_export_has_no_public_account_payload(self):
         source = SCRIPT.read_text(encoding="utf-8")
 
