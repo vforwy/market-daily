@@ -1,12 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useEChart } from '../../hooks/useEChart'
 import {
+  calendarSeasonalWindow,
   pointAtSeasonAxisKey,
   seasonalAxisKeys,
   seasonalAxisLabel,
   seasonalAxisTooltipLabel,
   seasonalPointKey,
   seasonalYears,
+  seasonalWindowLabel,
 } from '../../lib/seasonalAxis'
 import type { SpreadSeasonalChart, SpreadSeasonalPoint } from '../../api'
 import styles from './SpreadSeasonalityPanel.module.css'
@@ -40,6 +42,9 @@ function fmt(value: number | null | undefined): string {
 export default function SpreadSeasonalityCard({ item, years }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const renderChart = useEChart(elRef, 'dark')
+  const window = useMemo(() => item.seasonAxis === 'delivery-year'
+    ? calendarSeasonalWindow(item.nearMonth, item.farMonth, item.farYearOffset)
+    : undefined, [item.seasonAxis, item.nearMonth, item.farMonth, item.farYearOffset])
 
   useEffect(() => {
     if (!elRef.current) return
@@ -49,6 +54,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
       item.seriesByYear,
       item.seasonAxis === 'delivery-year' ? orderedYears : years,
       item.seasonAxis,
+      window,
     )
     const pointsByYear = new Map(
       orderedYears.map(year => [year, item.seriesByYear[String(year)] ?? []]),
@@ -110,7 +116,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
           const x = rows[0]?.axisValue ?? (firstPoint
             ? seasonalPointKey(firstPoint, Number(rows[0].seriesName), item.seasonAxis)
             : '')
-          let html = `<div style="color:#777;font-size:11px;margin-bottom:4px">${seasonalAxisTooltipLabel(x, item.seasonAxis)}</div>`
+          let html = `<div style="color:#777;font-size:11px;margin-bottom:4px">${seasonalAxisTooltipLabel(x, item.seasonAxis, window)}</div>`
           orderedYears.forEach((year, index) => {
             const point = pointAtSeasonAxisKey(pointsByYear.get(year) ?? [], x, year, item.seasonAxis)
             if (!point) return
@@ -135,7 +141,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
           hideOverlap: item.seasonAxis === 'delivery-year',
           interval: 0,
           formatter(value: string, index: number) {
-            return seasonalAxisLabel(value, xLabels[index - 1], item.seasonAxis)
+            return seasonalAxisLabel(value, xLabels[index - 1], item.seasonAxis, window)
           },
         },
       },
@@ -149,7 +155,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
       },
       series,
     })
-  }, [item, years, renderChart])
+  }, [item, years, renderChart, window])
 
   return (
     <div className={styles.card}>
@@ -159,7 +165,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
       </div>
       {item.seasonAxis === 'delivery-year' && (
         <div className={styles.seasonNote}>
-          按近腿交割年对齐 · 固定合约对 · 两腿共同报价{item.priceBasis === 'raw_settle' ? ' · 原始结算价' : ''}
+          {window ? seasonalWindowLabel(window) : '固定合约历史'} · 固定合约对{item.priceBasis === 'raw_settle' ? ' · 原始结算价' : ''}
         </div>
       )}
       <div ref={elRef} className={styles.chart} />

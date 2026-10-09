@@ -5,6 +5,43 @@ export interface SeasonalAxisPoint {
 
 export type SeasonalAxis = 'delivery-year' | undefined
 
+export type SeasonalWindow = {
+  nearMonth: number
+  farMonth: number
+  farYearOffset: 0 | 1
+  startYearOffset: -1 | 0
+}
+
+export function calendarSeasonalWindow(
+  nearMonth?: string,
+  farMonth?: string,
+  farYearOffset?: number,
+): SeasonalWindow | undefined {
+  if (typeof nearMonth !== 'string' || !/^[0-9]{1,2}$/.test(nearMonth)
+    || typeof farMonth !== 'string' || !/^[0-9]{1,2}$/.test(farMonth)) return undefined
+  const near = Number(nearMonth)
+  const far = Number(farMonth)
+  if (near < 1 || near > 12 || far < 1 || far > 12 || near === far) return undefined
+  const expectedOffset = near < far ? 0 : 1
+  if (farYearOffset !== expectedOffset) return undefined
+  return {
+    nearMonth: near,
+    farMonth: far,
+    farYearOffset: expectedOffset,
+    startYearOffset: expectedOffset === 0 ? -1 : 0,
+  }
+}
+
+function isCalendarSeasonalWindow(window?: SeasonalWindow): window is SeasonalWindow {
+  if (!window) return false
+  const validated = calendarSeasonalWindow(String(window.nearMonth), String(window.farMonth), window.farYearOffset)
+  return Boolean(validated && validated.startYearOffset === window.startYearOffset)
+}
+
+export function seasonalWindowLabel(window: SeasonalWindow): string {
+  return `${window.farMonth}月—${window.startYearOffset === -1 ? '次年' : ''}${window.nearMonth}月底`
+}
+
 /** Ordinary seasonal charts still use the response's calendar-year selection. */
 export function seasonalYears<T>(
   seriesByYear: Record<string, T[]>,
@@ -30,10 +67,26 @@ export function seasonalAxisKeys<T extends SeasonalAxisPoint>(
   seriesByYear: Record<string, T[]>,
   years: number[],
   seasonAxis: SeasonalAxis,
+  window?: SeasonalWindow,
 ): string[] {
-  const keys = [...new Set(years.flatMap(year => (
-    seriesByYear[String(year)] ?? []
-  ).map(point => seasonalPointKey(point, year, seasonAxis))))]
+  const axisKeys = new Set<string>()
+  if (seasonAxis === 'delivery-year' && isCalendarSeasonalWindow(window)) {
+    // Only the display axis is bounded; source quotations are never cropped or filled.
+    for (const year of years) {
+      const lastDay = Date.UTC(year, window.nearMonth, 0)
+      for (let day = Date.UTC(year + window.startYearOffset, window.farMonth - 1, 1); day <= lastDay; day += 86_400_000) {
+        const date = new Date(day)
+        axisKeys.add(`${date.getUTCFullYear() - year}:${date.toISOString().slice(5, 10)}`)
+      }
+    }
+  } else {
+    for (const year of years) {
+      for (const point of seriesByYear[String(year)] ?? []) {
+        axisKeys.add(seasonalPointKey(point, year, seasonAxis))
+      }
+    }
+  }
+  const keys = [...axisKeys]
   if (seasonAxis !== 'delivery-year') return keys.sort()
   return keys.sort((a, b) => {
     const [aOffset, aDate] = a.split(':')
@@ -61,6 +114,7 @@ export function seasonalAxisLabel(
   axisKey: string,
   previousKey: string | undefined,
   seasonAxis: SeasonalAxis,
+  window?: SeasonalWindow,
 ): string {
   if (seasonAxis !== 'delivery-year') {
     return !previousKey || previousKey.slice(0, 2) !== axisKey.slice(0, 2)
@@ -71,13 +125,19 @@ export function seasonalAxisLabel(
   const [previousOffset, previousDate] = previousKey?.split(':') ?? []
   const month = date.slice(0, 2)
   if (offset === previousOffset && month === previousDate?.slice(0, 2)) return ''
+  if (isCalendarSeasonalWindow(window)) return `${month}月`
   return offset !== previousOffset
     ? `${relativeYearLabel(Number(offset))}\n${month}月`
     : `${month}月`
 }
 
-export function seasonalAxisTooltipLabel(axisKey: string, seasonAxis: SeasonalAxis): string {
+export function seasonalAxisTooltipLabel(
+  axisKey: string,
+  seasonAxis: SeasonalAxis,
+  window?: SeasonalWindow,
+): string {
   if (seasonAxis !== 'delivery-year' || !axisKey) return axisKey
   const [offset, date] = axisKey.split(':')
+  if (isCalendarSeasonalWindow(window)) return date
   return `${relativeYearLabel(Number(offset))} ${date}`
 }
