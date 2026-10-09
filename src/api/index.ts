@@ -1,4 +1,5 @@
 import { RetryablePromiseCache } from '../lib/retryablePromiseCache'
+import { createStaticSnapshotAdapter } from './staticSnapshotAdapter'
 
 export interface Bar {
   d: string
@@ -209,37 +210,20 @@ type StaticSpreadPayload = Record<SpreadPriceMode, SpreadSeasonalResponse> & {
   fixedContract: FixedContractSpreadResponse
 }
 
-interface SnapshotMeta {
+export interface SnapshotMeta {
   generatedAt: string
   latestDate: string
-}
-
-interface StaticSnapshot {
-  meta: SnapshotMeta
-  commodityConfig: CommodityConfig
-  klineBatches: Record<KlineBatchKind, BatchKlines>
-  termStructureMatrix: TermStructureMatrix
 }
 
 interface StaticVarietyKlines extends KLineOptionsResponse {
   contracts: Record<string, Bar[]>
 }
 
-const snapshotPromises = new RetryablePromiseCache<string, StaticSnapshot>()
+const snapshotAdapter = createStaticSnapshotAdapter(import.meta.env.BASE_URL)
 const spreadPromises = new RetryablePromiseCache<string, StaticSpreadPayload>()
 const klinePromises = new RetryablePromiseCache<string, StaticVarietyKlines>()
 const crossSpreadOverviewPromises = new RetryablePromiseCache<string, CrossSpreadOverviewResponse>()
 const crossSpreadDetailPromises = new RetryablePromiseCache<string, CrossSpreadDetailResponse>()
-
-function loadSnapshot(): Promise<StaticSnapshot> {
-  return snapshotPromises.get('snapshot', () => {
-    const url = `${import.meta.env.BASE_URL}data/snapshot.json`
-    return fetch(url).then(async response => {
-      if (!response.ok) throw new Error(`静态数据加载失败 (${response.status})`)
-      return response.json() as Promise<StaticSnapshot>
-    })
-  })
-}
 
 function loadSpreads(variety: string): Promise<StaticSpreadPayload> {
   const key = variety.toUpperCase()
@@ -289,34 +273,11 @@ function varietyFromCode(code: string): string {
   return match?.[1] ?? code.split('.')[0].toUpperCase()
 }
 
-function sliceBatch(batch: BatchKlines, days: number): BatchKlines {
-  if (days >= 999) return batch
-  const timestamps = Object.values(batch)
-    .flatMap(entry => entry.bars.slice(-1).map(bar => Date.parse(bar.d)))
-    .filter(Number.isFinite)
-  const latest = timestamps.length ? Math.max(...timestamps) : Date.now()
-  const cutoff = latest - days * 86_400_000
-  return Object.fromEntries(
-    Object.entries(batch).map(([code, entry]) => [
-      code,
-      { ...entry, bars: entry.bars.filter(bar => Date.parse(bar.d) >= cutoff) },
-    ]),
-  )
-}
-
 export const api = {
-  meta: async () => (await loadSnapshot()).meta,
-  commodityConfig: async () => (await loadSnapshot()).commodityConfig,
-  termStructureMatrix: async () => (await loadSnapshot()).termStructureMatrix,
-  termStructure: async (variety: string): Promise<TermStructureSingle> => {
-    const snapshot = await loadSnapshot()
-    const chart = snapshot.termStructureMatrix.charts.find(item => item.code === variety.toUpperCase()) ?? null
-    return {
-      latestDate: snapshot.termStructureMatrix.latestDate,
-      days: snapshot.termStructureMatrix.days,
-      chart,
-    }
-  },
+  meta: snapshotAdapter.meta,
+  commodityConfig: snapshotAdapter.commodityConfig,
+  termStructureMatrix: snapshotAdapter.termStructureMatrix,
+  termStructure: snapshotAdapter.termStructure,
   spreadSeasonal: async (
     variety: string,
     _years = 5,
@@ -348,14 +309,10 @@ export const api = {
   },
   crossSpreadOverview: loadCrossSpreadOverview,
   crossSpreadDetail: loadCrossSpreadDetail,
-  klinesBatch: async (days = 60, kind: KlineBatchKind = 'contract') => {
-    const snapshot = await loadSnapshot()
-    return sliceBatch(snapshot.klineBatches[kind], days)
-  },
+  klinesBatch: snapshotAdapter.klinesBatch,
   kline: async (params: { code?: string; kind?: KlineBatchKind; variety?: string }) => {
     if (params.kind === 'dominant_continuous') {
-      const snapshot = await loadSnapshot()
-      return snapshot.klineBatches.dominant_continuous[params.variety?.toUpperCase() ?? '']?.bars ?? []
+      return snapshotAdapter.dominantBars(params.variety ?? '')
     }
     if (!params.code) return []
     const variety = params.variety?.toUpperCase() || varietyFromCode(params.code)

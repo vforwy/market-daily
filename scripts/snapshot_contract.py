@@ -219,6 +219,40 @@ def _spreads(payload: dict, variety: str, latest: str) -> tuple[int, int]:
     return len(charts), len(historical)
 
 
+def snapshot_view_payloads(snapshot: dict) -> dict[str, dict]:
+    """Project the canonical snapshot into lazy views without recalculating data."""
+    meta = snapshot["meta"]
+    return {
+        "manifest.json": {"formatVersion": 2, "meta": meta,
+                          "commodityConfig": snapshot["commodityConfig"]},
+        **{f"kline-batches/{kind}.json": {"meta": meta, "data": snapshot["klineBatches"][kind]}
+           for kind in ("contract", "dominant_continuous")},
+        "term-structure.json": {"meta": meta, "data": snapshot["termStructureMatrix"]},
+    }
+
+
+def _validate_views(data_dir: Path, snapshot: dict) -> list[str]:
+    manifest = data_dir / "manifest.json"
+    if not manifest.exists() and not manifest.is_symlink():
+        _require(not (data_dir / "kline-batches").exists()
+                 and not (data_dir / "kline-batches").is_symlink()
+                 and not (data_dir / "term-structure.json").exists()
+                 and not (data_dir / "term-structure.json").is_symlink(),
+                 "lazy snapshot views require manifest.json")
+        return []  # V1 snapshots remain usable during a cross-machine rollout.
+    directory = data_dir / "kline-batches"
+    _require(not directory.is_symlink(), "kline-batches must not be a symlink")
+    _require({path.name for path in directory.glob("*.json")} ==
+             {"contract.json", "dominant_continuous.json"}, "K-line views must contain exactly both kinds")
+    views = snapshot_view_payloads(snapshot)
+    for relative, expected in views.items():
+        payload = _read(data_dir / relative)
+        # JSON comparison is type-sensitive: True must not equal a canonical price of 1.
+        _require(json.dumps(payload, sort_keys=True) == json.dumps(expected, sort_keys=True),
+                 f"{relative} differs from the canonical snapshot")
+    return list(views)
+
+
 def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
     """Validate content, not just file presence; no dependency on the live database."""
     data_dir = Path(data_dir)
@@ -251,6 +285,7 @@ def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
             _require(count > 0, f"batch {code} has no K-line bars")
     matrix = _object(snapshot.get("termStructureMatrix"), "termStructureMatrix")
     _term_matrix(matrix, varieties, latest)
+    view_files = _validate_views(data_dir, snapshot)
 
     contracts = bars = fixed_charts = historical_charts = 0
     for variety in varieties:
@@ -322,7 +357,7 @@ def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
     # every local artifact has already passed the complete contract above.
     variety = "BU" if "BU" in varieties else sorted(varieties)[0]
     sample = ["snapshot.json", f"spreads/{variety}.json", f"klines/{variety}.json",
-              "cross-spreads/overview.json", f"cross-spreads/{sorted(codes)[0]}.json"]
+              "cross-spreads/overview.json", f"cross-spreads/{sorted(codes)[0]}.json", *view_files]
     hashes = {relative: hashlib.sha256((data_dir / relative).read_bytes()).hexdigest() for relative in sample}
     return {"latestDate": latest, "generatedAt": meta["generatedAt"], "varieties": len(varieties),
             "contracts": contracts, "bars": bars, "crossSpreads": len(codes),

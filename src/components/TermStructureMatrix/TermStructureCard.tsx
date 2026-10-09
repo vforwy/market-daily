@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import type { TermStructureChart } from '../../api'
 import styles from './TermStructureMatrix.module.css'
 
@@ -26,15 +26,12 @@ interface Props {
 
 export default function TermStructureCard({ item, compact = false, boxClass, priceField = 'settle' }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, undefined, true)
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
     if (!elRef.current || !isVisible) return
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(elRef.current)
-    }
-    const chart = chartRef.current
+
     const oldToNew = [...item.dates].reverse()
     const legendNames = oldToNew.map(legendLabel)
     const topGridTop = compact ? 48 : 54
@@ -73,7 +70,7 @@ export default function TermStructureCard({ item, compact = false, boxClass, pri
       }
     })
 
-    chart.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       color: DATE_STYLES.map(style => style.color),
@@ -162,9 +159,9 @@ export default function TermStructureCard({ item, compact = false, boxClass, pri
           data: item.months.map(m => item.latestVolume[m] || 0),
         },
       ],
-    }, true)
-    chart.resize()
-  }, [compact, item, isVisible, priceField])
+    })
+
+  }, [compact, item, isVisible, priceField, renderChart])
 
   useEffect(() => {
     if (!elRef.current) return
@@ -179,16 +176,6 @@ export default function TermStructureCard({ item, compact = false, boxClass, pri
     )
     observer.observe(elRef.current)
     return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
   }, [])
 
   return (

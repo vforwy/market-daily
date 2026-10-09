@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import { barsToChartOhlc, volumeBarIsUp } from '../../lib/klineOhlc'
 import { MANUAL_REFRESH_STALE_TIME, MARKET_DATA_GC_TIME } from '../../lib/queryFreshness'
 import { api, type KLineOption } from '../../api'
@@ -38,7 +38,7 @@ function varietyFromContract(code: string): string {
 export default function KLinePanel({ code, name }: Props) {
   const panelRef   = useRef<HTMLElement>(null)
   const elRef      = useRef<HTMLDivElement>(null)
-  const chartRef   = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, 'dark')
   const selectedStorageKey = `fom:kline-selected:${code}`
   const scrollStorageKey = `fom:kline-scroll:${code}`
   const [selectedState, setSelectedState] = useState(() => ({
@@ -92,10 +92,6 @@ export default function KLinePanel({ code, name }: Props) {
   useEffect(() => {
     if (!elRef.current || !bars.length) return
 
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(elRef.current, 'dark')
-    }
-    const chart = chartRef.current
     const dates = bars.map(b => b.d)
     const ohlc  = barsToChartOhlc(bars)
     const vols  = bars.map(b => b.v)
@@ -103,7 +99,7 @@ export default function KLinePanel({ code, name }: Props) {
     const zoomStart = 50
     const dayBoundaries: number[] = []
 
-    chart.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       title: [
@@ -229,18 +225,8 @@ export default function KLinePanel({ code, name }: Props) {
           } : undefined,
         },
       ],
-    }, true)
-  }, [bars])
-
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+    })
+  }, [bars, renderChart])
 
   useEffect(() => {
     const panel = panelRef.current

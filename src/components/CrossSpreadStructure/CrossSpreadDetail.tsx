@@ -5,7 +5,7 @@ import {
   type CrossSpreadDetailResponse,
   type CrossSpreadPoint,
 } from '../../api'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import { usePersistentState } from '../../hooks/usePersistentState'
 import { defaultSpreadMonth, spreadMonthColor } from '../../lib/spreadMonths'
 import { tradingDates } from '../../lib/tradingAxis'
@@ -36,11 +36,11 @@ function formatValue(value: number | null | undefined): string {
 
 function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, undefined, true)
 
   useEffect(() => {
     if (!elRef.current) return
-    if (!chartRef.current) chartRef.current = echarts.init(elRef.current)
+
     const dominantLatest = data.dominantSeries.at(-1)?.v
     const history = data.structureHistory?.length
       ? data.structureHistory
@@ -51,7 +51,7 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
     )
     const latestDate = history.at(-1)?.date
     const historicalColors = ['#8f9aa7', '#f0ad4e', '#b279d6', '#35b779']
-    chartRef.current.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       grid: { left: 68, right: 28, top: 62, bottom: 48 },
@@ -133,26 +133,16 @@ function StructureChart({ data }: { data: CrossSpreadDetailResponse }) {
           } : undefined,
         }
       }),
-    }, true)
-    chartRef.current.resize()
-  }, [data])
+    })
 
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+  }, [data, renderChart])
 
   return <div ref={elRef} className={styles.structureChart} />
 }
 
 function AdjustedSeasonalChart({ data }: { data: CrossSpreadDetailResponse }) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, undefined, true)
   const yearlySeries = useMemo(() => {
     const grouped = new Map<string, CrossSpreadPoint[]>()
     for (const point of data.adjustedDominantSeries ?? []) {
@@ -164,10 +154,10 @@ function AdjustedSeasonalChart({ data }: { data: CrossSpreadDetailResponse }) {
 
   useEffect(() => {
     if (!elRef.current) return
-    if (!chartRef.current) chartRef.current = echarts.init(elRef.current)
+
     const latestYear = yearlySeries.at(-1)?.year
     const historicalColors = ['#f0ad4e', '#b279d6', '#35b779', '#ef6f6c', '#8f9df4', '#d6c562']
-    chartRef.current.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       grid: { left: 68, right: 28, top: 62, bottom: 48 },
@@ -248,26 +238,16 @@ function AdjustedSeasonalChart({ data }: { data: CrossSpreadDetailResponse }) {
           } : undefined,
         }
       }),
-    }, true)
-    chartRef.current.resize()
-  }, [yearlySeries])
+    })
 
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+  }, [yearlySeries, renderChart])
 
   return <div ref={elRef} className={styles.seasonalChart} />
 }
 
 function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; selected: string[] }) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, undefined, true)
   const selectedSeries = useMemo(
     () => data.monthSeries
       .filter(series => selected.includes(series.month))
@@ -281,11 +261,11 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
 
   useEffect(() => {
     if (!elRef.current) return
-    if (!chartRef.current) chartRef.current = echarts.init(elRef.current)
+
     const pointMaps = new Map(
       selectedSeries.map(series => [series.label, new Map(series.points.map(point => [point.d, point]))]),
     )
-    chartRef.current.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       grid: { left: 68, right: 28, top: 52, bottom: 68 },
@@ -375,19 +355,9 @@ function HistoryChart({ data, selected }: { data: CrossSpreadDetailResponse; sel
           } : undefined,
         }
       }),
-    }, true)
-    chartRef.current.resize()
-  }, [dates, selectedSeries])
+    })
 
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+  }, [dates, selectedSeries, renderChart])
 
   return <div ref={elRef} className={styles.historyChart} />
 }

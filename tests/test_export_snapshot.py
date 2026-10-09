@@ -110,6 +110,13 @@ class ExportSnapshotTest(unittest.TestCase):
             self.assertEqual(report["output"], str(output))
             self.assertEqual(report["varieties"], 1)
             self.assertEqual(validate_snapshot(output.parent)["crossSpreads"], 1)
+            self.assertEqual(report["views"]["files"], 4)
+            snapshot = json.loads(output.read_text())
+            manifest = json.loads((output.parent / "manifest.json").read_text())
+            self.assertEqual(manifest, {"formatVersion": 2, "meta": snapshot["meta"],
+                                       "commodityConfig": snapshot["commodityConfig"]})
+            self.assertEqual(json.loads((output.parent / "term-structure.json").read_text()),
+                             {"meta": snapshot["meta"], "data": snapshot["termStructureMatrix"]})
 
     def test_full_export_detail_failure_preserves_former_tree(self):
         from test_snapshot_contract import make_snapshot, tree_bytes
@@ -124,6 +131,31 @@ class ExportSnapshotTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "interrupted"):
                     MODULE.export_snapshot(root, target / "snapshot.json")
             self.assertEqual(tree_bytes(target), previous)
+
+    def test_view_export_rejects_symlinks_without_overwriting_external_targets(self):
+        from test_snapshot_contract import make_snapshot, tree_bytes
+        from snapshot_contract import SnapshotValidationError
+
+        for relative in ("manifest.json", "term-structure.json", "kline-batches"):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                source, target = root / "source", root / "data"
+                make_snapshot(source)
+                make_snapshot(target)
+                outside = root / "outside"
+                if relative == "kline-batches":
+                    outside.mkdir()
+                    (outside / "keep.txt").write_bytes(b"not public data")
+                else:
+                    outside.write_bytes(b"not public data")
+                (target / relative).symlink_to(outside, target_is_directory=outside.is_dir())
+                previous = tree_bytes(root)
+                with patch.object(MODULE, "_source_client", return_value=CompleteSnapshotClient(source)):
+                    with self.assertRaisesRegex(SnapshotValidationError, "symlink"):
+                        MODULE.export_snapshot(root, target / "snapshot.json")
+                current = tree_bytes(root)
+                current.pop(".snapshot-data.lock", None)
+                self.assertEqual(current, previous)
 
     def test_pages_export_has_no_public_account_payload(self):
         source = SCRIPT.read_text(encoding="utf-8")

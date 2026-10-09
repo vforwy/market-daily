@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlencode
 
-from snapshot_contract import publish_snapshot
+from snapshot_contract import SnapshotValidationError, publish_snapshot, snapshot_view_payloads
 
 
 def fetch_json(client, path: str):
@@ -171,6 +171,24 @@ def _source_client(source_root: Path):
     return app.test_client()
 
 
+def export_snapshot_views(snapshot: dict, data_dir: Path) -> dict:
+    """Write per-view slices of the same generation for the lightweight static Adapter."""
+    views = snapshot_view_payloads(snapshot)
+    batch_dir = data_dir / "kline-batches"
+    # A copied older tree can contain symlinks. Refuse them before any write,
+    # rather than relying on post-generation validation to protect an outside target.
+    for path in (data_dir, batch_dir, *(data_dir / relative for relative in views)):
+        if path.is_symlink():
+            raise SnapshotValidationError(f"snapshot view output must not be a symlink: {path}")
+    if batch_dir.exists():
+        shutil.rmtree(batch_dir)
+    for relative, payload in views.items():
+        path = data_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return {"files": len(views), "bytes": sum((data_dir / relative).stat().st_size for relative in views)}
+
+
 def _generate_snapshot(client, output: Path) -> dict:
     config = fetch_json(client, "/api/commodity-config")
     contract_batch = fetch_json(client, "/api/klines/batch?days=999&kind=contract")
@@ -201,6 +219,7 @@ def _generate_snapshot(client, output: Path) -> dict:
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    view_report = export_snapshot_views(payload, output.parent)
     return {
         "output": str(output),
         "bytes": (
@@ -208,12 +227,14 @@ def _generate_snapshot(client, output: Path) -> dict:
             + spread_report["bytes"]
             + cross_spread_report["bytes"]
             + kline_report["bytes"]
+            + view_report["bytes"]
         ),
         "latestDate": payload["meta"]["latestDate"],
         "varieties": len(varieties),
         "klines": kline_report,
         "spreads": spread_report,
         "crossSpreads": cross_spread_report,
+        "views": view_report,
     }
 
 

@@ -3,7 +3,7 @@ import type {
   FixedContractSpreadChart,
   FixedContractSpreadPoint,
 } from '../../api'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import { tradingDates } from '../../lib/tradingAxis'
 import styles from './SpreadSeasonalityPanel.module.css'
 
@@ -30,7 +30,7 @@ interface Props {
 
 export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, undefined, true)
   const dates = useMemo(
     () => tradingDates(item.series.map(entry => entry.points)),
     [item.series],
@@ -38,7 +38,7 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
 
   useEffect(() => {
     if (!elRef.current) return
-    if (!chartRef.current) chartRef.current = echarts.init(elRef.current)
+
     const series = item.series.map((entry, index) => ({
       name: entry.label,
       type: 'line',
@@ -61,7 +61,7 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
       } : undefined,
     }))
 
-    chartRef.current.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       color: SERIES_COLORS,
@@ -137,19 +137,9 @@ export default function FixedContractSpreadCard({ item, dominantCode }: Props) {
         },
       ],
       series,
-    }, true)
-    chartRef.current.resize()
-  }, [dates, item])
+    })
 
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+  }, [dates, item, renderChart])
 
   return (
     <div className={styles.card}>

@@ -1,6 +1,10 @@
 export class RetryablePromiseCache<Key, Value> {
   private readonly entries = new Map<Key, Promise<Value>>()
 
+  invalidate(key: Key): void {
+    this.entries.delete(key)
+  }
+
   get(key: Key, load: () => Promise<Value>): Promise<Value> {
     const cached = this.entries.get(key)
     if (cached) return cached

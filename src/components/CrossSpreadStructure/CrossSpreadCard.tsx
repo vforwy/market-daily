@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CrossSpreadOverviewChart, CrossSpreadPoint } from '../../api'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import { tradingDates } from '../../lib/tradingAxis'
 import { crossSpreadDisplayName } from './display'
 import styles from './CrossSpreadStructure.module.css'
@@ -39,7 +39,7 @@ function filterPoints(points: CrossSpreadPoint[], cutoff: string): CrossSpreadPo
 
 export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, undefined, true)
   const cutoff = rangeStart(item.latestDate, range)
   const fixed = useMemo(() => filterPoints(item.fixedSeries, cutoff), [cutoff, item.fixedSeries])
   const dominant = useMemo(
@@ -50,8 +50,7 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
 
   useEffect(() => {
     if (!elRef.current) return
-    if (!chartRef.current) chartRef.current = echarts.init(elRef.current)
-    const chart = chartRef.current
+
     const fixedByDate = new Map(fixed.map(point => [point.d, point]))
     const dominantByDate = new Map(dominant.map(point => [point.d, point]))
     const series = []
@@ -90,7 +89,7 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
       })
     }
 
-    chart.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       grid: { left: 54, right: 14, top: 30, bottom: 30 },
@@ -145,19 +144,9 @@ export default function CrossSpreadCard({ item, mode, range, onOpen }: Props) {
         splitLine: { lineStyle: { color: '#2d2d2d', type: 'dashed' } },
       },
       series,
-    }, true)
-    chart.resize()
-  }, [dates, dominant, fixed, item.currentMonthLabel, mode])
+    })
 
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+  }, [dates, dominant, fixed, item.currentMonthLabel, mode, renderChart])
 
   return (
     <article

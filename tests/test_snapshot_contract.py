@@ -88,6 +88,55 @@ class SnapshotValidationTest(unittest.TestCase):
         self.assertEqual(summary["verificationFiles"]["spreads/BU.json"],
                          hashlib.sha256((self.root / "spreads/BU.json").read_bytes()).hexdigest())
 
+    def add_views(self):
+        snapshot = json.loads((self.root / "snapshot.json").read_text())
+        for relative, payload in contract.snapshot_view_payloads(snapshot).items():
+            write_json(self.root / relative, payload)
+
+    def test_lazy_views_are_exact_projections_and_in_online_hashes(self):
+        self.add_views()
+        summary = contract.validate_snapshot(self.root)
+        self.assertEqual(len(summary["verificationFiles"]), 9)
+        manifest = json.loads((self.root / "manifest.json").read_text())
+        self.assertEqual(manifest["formatVersion"], 2)
+        self.assertNotIn("klineBatches", manifest)
+        self.assertNotIn("termStructureMatrix", manifest)
+        self.assertEqual(json.loads((self.root / "kline-batches/contract.json").read_text())["data"],
+                         json.loads((self.root / "snapshot.json").read_text())["klineBatches"]["contract"])
+
+    def test_lazy_views_reject_stale_partial_extra_and_type_changed_data(self):
+        self.add_views()
+        previous = tree_bytes(self.root)
+        for action in ("stale_meta", "changed_price", "changed_type", "changed_config", "missing", "extra", "no_manifest"):
+            with self.subTest(action=action):
+                if action == "stale_meta":
+                    self.mutate("term-structure.json", lambda p: p["meta"].update(generatedAt="old"))
+                elif action in {"changed_price", "changed_type"}:
+                    value = True if action == "changed_type" else 2
+                    self.mutate("kline-batches/contract.json", lambda p: p["data"]["BU2611.SHF"]["bars"][0].update(c=value))
+                elif action == "changed_config":
+                    self.mutate("manifest.json", lambda p: p["commodityConfig"].update(items=[]))
+                elif action == "missing":
+                    (self.root / "kline-batches/contract.json").unlink()
+                elif action == "extra":
+                    write_json(self.root / "kline-batches/unexpected.json", {})
+                else:
+                    (self.root / "manifest.json").unlink()
+                with self.assertRaises(contract.SnapshotValidationError):
+                    contract.validate_snapshot(self.root)
+                for relative in set(tree_bytes(self.root)) - set(previous):
+                    (self.root / relative).unlink()
+                for relative, body in previous.items():
+                    (self.root / relative).write_bytes(body)
+
+    def test_lazy_view_directory_symlink_is_rejected(self):
+        self.add_views()
+        directory = self.root / "kline-batches"
+        directory.rename(self.root / "outside")
+        directory.symlink_to(self.root / "outside", target_is_directory=True)
+        with self.assertRaisesRegex(contract.SnapshotValidationError, "symlink"):
+            contract.validate_snapshot(self.root)
+
     def test_empty_fixed_requires_explicit_reason(self):
         self.mutate("spreads/BU.json", lambda p: p["fixedContract"].update(charts=[]))
         with self.assertRaisesRegex(contract.SnapshotValidationError, "explain unavailability"):

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import { pointAtMonthDay } from '../../lib/seasonalTooltip'
 import type { SpreadSeasonalChart, SpreadSeasonalPoint } from '../../api'
 import styles from './SpreadSeasonalityPanel.module.css'
@@ -32,14 +32,11 @@ function fmt(value: number | null | undefined): string {
 
 export default function SpreadSeasonalityCard({ item, years }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, 'dark')
 
   useEffect(() => {
     if (!elRef.current) return
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(elRef.current, 'dark')
-    }
-    const chart = chartRef.current
+
     const xLabels = Array.from(new Set(
       years.flatMap(year => (item.seriesByYear[String(year)] ?? []).map(point => point.x)),
     )).sort()
@@ -80,7 +77,7 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
       }
     })
 
-    chart.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       legend: {
@@ -140,18 +137,8 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
         splitLine: { lineStyle: { color: '#2f343a', type: 'dashed', opacity: 0.8 } },
       },
       series,
-    }, true)
-  }, [item, years])
-
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
-  }, [])
+    })
+  }, [item, years, renderChart])
 
   return (
     <div className={styles.card}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { echarts } from '../../lib/echarts'
+import { useEChart } from '../../hooks/useEChart'
 import { barsToChartOhlc, volumeBarIsUp } from '../../lib/klineOhlc'
 import type { Bar } from '../../api'
 import styles from './KLineCard.module.css'
@@ -16,7 +16,7 @@ interface Props {
 
 export default function KLineCard({ name, bars, changePct, onOpen }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
-  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
+  const renderChart = useEChart(elRef, 'dark')
   const [isVisible, setIsVisible] = useState(false)
 
   const latest = bars[bars.length - 1]
@@ -25,15 +25,12 @@ export default function KLineCard({ name, bars, changePct, onOpen }: Props) {
 
   useEffect(() => {
     if (!elRef.current || !bars.length || !isVisible) return
-    if (!chartRef.current) {
-      chartRef.current = echarts.init(elRef.current, 'dark')
-    }
-    const chart = chartRef.current
+
     const dates = bars.map(b => b.d)
     const ohlc  = barsToChartOhlc(bars)
     const vols  = bars.map(b => b.v)
 
-    chart.setOption({
+    renderChart({
       backgroundColor: 'transparent',
       animation: false,
       title: [
@@ -94,8 +91,8 @@ export default function KLineCard({ name, bars, changePct, onOpen }: Props) {
         },
       ],
       tooltip: { show: false },
-    }, true)
-  }, [bars, isVisible])
+    })
+  }, [bars, isVisible, renderChart])
 
   useEffect(() => {
     if (!elRef.current) return
@@ -110,16 +107,6 @@ export default function KLineCard({ name, bars, changePct, onOpen }: Props) {
     )
     observer.observe(elRef.current)
     return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const observer = new ResizeObserver(() => chartRef.current?.resize())
-    if (elRef.current) observer.observe(elRef.current)
-    return () => {
-      observer.disconnect()
-      chartRef.current?.dispose()
-      chartRef.current = null
-    }
   }, [])
 
   return (
