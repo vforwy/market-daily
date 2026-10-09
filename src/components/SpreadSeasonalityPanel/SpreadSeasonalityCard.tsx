@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useEChart } from '../../hooks/useEChart'
-import { pointAtMonthDay } from '../../lib/seasonalTooltip'
+import {
+  pointAtSeasonAxisKey,
+  seasonalAxisKeys,
+  seasonalAxisLabel,
+  seasonalAxisTooltipLabel,
+  seasonalPointKey,
+  seasonalYears,
+} from '../../lib/seasonalAxis'
 import type { SpreadSeasonalChart, SpreadSeasonalPoint } from '../../api'
 import styles from './SpreadSeasonalityPanel.module.css'
 
@@ -37,17 +44,18 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
   useEffect(() => {
     if (!elRef.current) return
 
-    const xLabels = Array.from(new Set(
-      years.flatMap(year => (item.seriesByYear[String(year)] ?? []).map(point => point.x)),
-    )).sort()
-
-    const orderedYears = years.slice(-5)
+    const orderedYears = seasonalYears(item.seriesByYear, years, item.seasonAxis)
+    const xLabels = seasonalAxisKeys(
+      item.seriesByYear,
+      item.seasonAxis === 'delivery-year' ? orderedYears : years,
+      item.seasonAxis,
+    )
     const pointsByYear = new Map(
       orderedYears.map(year => [year, item.seriesByYear[String(year)] ?? []]),
     )
     const series = orderedYears.map((year, index) => {
       const points = pointsByYear.get(year) ?? []
-      const byX = new Map(points.map(point => [point.x, point]))
+      const byX = new Map(points.map(point => [seasonalPointKey(point, year, item.seasonAxis), point]))
       const style = YEAR_STYLES[index] ?? YEAR_STYLES[YEAR_STYLES.length - 1]
       return {
         name: String(year),
@@ -98,15 +106,18 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
         textStyle: { color: '#e4e4e4', fontSize: 12, lineHeight: 16 },
         formatter(params: unknown) {
           const rows = params as TooltipRow[]
-          const x = rows[0]?.axisValue ?? rows[0]?.data?.point?.x ?? ''
-          let html = `<div style="color:#777;font-size:11px;margin-bottom:4px">${x}</div>`
+          const firstPoint = rows[0]?.data?.point
+          const x = rows[0]?.axisValue ?? (firstPoint
+            ? seasonalPointKey(firstPoint, Number(rows[0].seriesName), item.seasonAxis)
+            : '')
+          let html = `<div style="color:#777;font-size:11px;margin-bottom:4px">${seasonalAxisTooltipLabel(x, item.seasonAxis)}</div>`
           orderedYears.forEach((year, index) => {
-            const point = pointAtMonthDay(pointsByYear.get(year) ?? [], x)
+            const point = pointAtSeasonAxisKey(pointsByYear.get(year) ?? [], x, year, item.seasonAxis)
             if (!point) return
             const color = YEAR_STYLES[index]?.color ?? YEAR_STYLES[0].color
             html += `<div style="white-space:nowrap;margin-bottom:1px">`
             html += `<span style="color:${color};font-weight:600">${year}: ${fmt(point.v)}</span>`
-            html += ` <span style="color:#7a7f87">${point.instance || ''}</span>`
+            html += ` <span style="color:#7a7f87">${item.seasonAxis === 'delivery-year' ? `${point.d} · ` : ''}${point.instance || ''}</span>`
             html += `</div>`
           })
           return html
@@ -121,10 +132,10 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
         axisLabel: {
           color: '#8f98a5',
           fontSize: 10,
+          hideOverlap: item.seasonAxis === 'delivery-year',
           interval: 0,
           formatter(value: string, index: number) {
-            const prev = xLabels[index - 1]
-            return !prev || prev.slice(0, 2) !== value.slice(0, 2) ? value.slice(0, 2) : ''
+            return seasonalAxisLabel(value, xLabels[index - 1], item.seasonAxis)
           },
         },
       },
@@ -146,6 +157,11 @@ export default function SpreadSeasonalityCard({ item, years }: Props) {
         <span className={styles.title}>{item.spreadName}</span>
         <span className={styles.meta}>{item.latestInstance}</span>
       </div>
+      {item.seasonAxis === 'delivery-year' && (
+        <div className={styles.seasonNote}>
+          按近腿交割年对齐 · 固定合约对 · 两腿共同报价{item.priceBasis === 'raw_settle' ? ' · 原始结算价' : ''}
+        </div>
+      )}
       <div ref={elRef} className={styles.chart} />
     </div>
   )

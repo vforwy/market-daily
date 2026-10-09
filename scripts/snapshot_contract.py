@@ -181,6 +181,70 @@ def _fixed_charts(charts, variety: str, latest: str, history_start: str, label: 
     return months
 
 
+def _delivery_seasonal(chart: dict, series: dict, variety: str, latest: str) -> None:
+    """A year denotes one near-delivery-year pair, never a rolled trade-year series."""
+    _require(chart.get("spreadType") == "calendar_month" and chart.get("priceBasis") == "raw_settle",
+             "delivery seasonality must use calendar-month raw settlement pairs")
+    near_month, far_month = chart.get("nearMonth"), chart.get("farMonth")
+    for month in (near_month, far_month):
+        _require(isinstance(month, str) and re.fullmatch(r"0[1-9]|1[0-2]", month) is not None,
+                 "delivery seasonality months must be two-digit calendar months")
+    offset = chart.get("farYearOffset")
+    _require(isinstance(offset, int) and not isinstance(offset, bool)
+             and offset == int(far_month <= near_month), "delivery seasonality has an invalid far-year offset")
+    _require(chart.get("spreadCode") == f"{variety}_{near_month}_{far_month}",
+             "delivery seasonal spread code and months differ")
+    metadata = _object(chart.get("seriesMetaByYear"), "seriesMetaByYear")
+    populated = {year for year, points in series.items() if points}
+    _require(set(metadata) == populated, "delivery seasonality metadata must match nonempty series")
+    last_points = []
+    for year, points in series.items():
+        _require(isinstance(year, str) and re.fullmatch(r"[0-9]{4}", year) is not None
+                 and 2000 <= int(year) <= 2099, "invalid seasonal delivery year")
+        if not points:
+            continue
+        info = _object(metadata[year], f"seriesMetaByYear.{year}")
+        near, far = info.get("leg1"), info.get("leg2")
+        # Three-digit CZCE codes repeat every decade; this series' delivery year,
+        # not the current snapshot year, is the only appropriate decoding anchor.
+        near_delivery = _contract_month(near, variety, f"{year}-01-01")
+        far_year = int(year) + offset
+        far_delivery = _contract_month(far, variety, f"{far_year}-01-01")
+        _require(near_delivery == int(year) * 100 + int(near_month)
+                 and far_delivery == far_year * 100 + int(far_month),
+                 "delivery seasonal legs differ from the series year or template months")
+        instance = f"{near.split('.', 1)[0]}-{far.split('.', 1)[0]}"
+        _require(info.get("instance") == instance, "delivery seasonal metadata instance and legs differ")
+        count = info.get("pointCount")
+        _require(isinstance(count, int) and not isinstance(count, bool) and count == len(points),
+                 "delivery seasonal point count differs from complete history")
+        _require(info.get("firstDate") == points[0]["d"] and info.get("lastDate") == points[-1]["d"],
+                 "delivery seasonal first/last date differs from shared quote history")
+        for point in points:
+            _require(point.get("leg1") == near and point.get("leg2") == far
+                     and point.get("instance") == instance, "delivery seasonal series rolls its fixed instance")
+            _require(point.get("x") == point["d"][5:], "delivery seasonal calendar label differs from trade date")
+            for field in ("leg1Price", "leg2Price"):
+                _require(field in point, f"delivery seasonal point is missing {field}")
+                _number(point[field], f"delivery seasonal {field}")
+            _require(point["v"] is not None and point["leg1Price"] is not None and point["leg2Price"] is not None,
+                     "delivery seasonal point requires both shared quote prices")
+            _require(math.isclose(point["v"], point["leg1Price"] - point["leg2Price"],
+                                  rel_tol=1e-9, abs_tol=0.0001), "delivery seasonal value is not near minus far")
+            if "ratio" in point:
+                _number(point["ratio"], "delivery seasonal ratio")
+        last_points.append(points[-1])
+    if last_points:
+        last_date = max(point["d"] for point in last_points)
+        _require(chart.get("latestDate") == last_date and last_date <= latest,
+                 "delivery seasonal latest date differs from its history")
+        _require(chart.get("latestInstance") in {point["instance"] for point in last_points if point["d"] == last_date},
+                 "delivery seasonal latest instance differs from its history")
+    else:
+        _require(chart.get("latestDate") == "" and chart.get("latestInstance") == "",
+                 "empty delivery seasonality cannot claim a latest quote")
+
+
 def _spreads(payload: dict, variety: str, latest: str) -> tuple[int, int]:
     for mode in ("raw", "adjusted"):
         seasonal = _object(payload.get(mode), f"{variety}.{mode}")
@@ -198,6 +262,9 @@ def _spreads(payload: dict, variety: str, latest: str) -> tuple[int, int]:
             for year, points in series.items():
                 _require(str(year) in {str(y) for y in years}, "seasonal series year is absent from years")
                 _points(points, f"{variety}.{mode}.{year}", latest)
+            if "seasonAxis" in chart:
+                _require(chart["seasonAxis"] == "delivery-year", "invalid seasonal axis basis")
+                _delivery_seasonal(chart, series, variety, latest)
     fixed = _object(payload.get("fixedContract"), f"{variety}.fixedContract")
     _require(fixed.get("variety") == variety and fixed.get("priceBasis") == "raw_settle",
              f"{variety} fixed-contract identity or price basis mismatch")

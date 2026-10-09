@@ -68,6 +68,25 @@ def tree_bytes(root):
     return {str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()}
 
 
+def delivery_seasonal_chart(year=2026, near_month="01", far_month="05", *, short_codes=False):
+    offset = int(far_month <= near_month)
+    near_digits = str(year % 10) if short_codes else f"{year % 100:02d}"
+    far_digits = str((year + offset) % 10) if short_codes else f"{(year + offset) % 100:02d}"
+    near, far = f"BU{near_digits}{near_month}.SHF", f"BU{far_digits}{far_month}.SHF"
+    instance = f"{near.split('.', 1)[0]}-{far.split('.', 1)[0]}"
+    dates = [f"{year - 1}-09-01", f"{year - 1}-12-01", f"{year}-01-05"]
+    points = [{"x": day[5:], "d": day, "v": 10, "instance": instance,
+               "leg1": near, "leg2": far, "leg1Price": 100, "leg2Price": 90} for day in dates]
+    return {
+        "spreadCode": f"BU_{near_month}_{far_month}", "spreadType": "calendar_month",
+        "seasonAxis": "delivery-year", "priceBasis": "raw_settle",
+        "nearMonth": near_month, "farMonth": far_month, "farYearOffset": offset,
+        "latestDate": dates[-1], "latestInstance": instance, "seriesByYear": {str(year): points},
+        "seriesMetaByYear": {str(year): {"instance": instance, "leg1": near, "leg2": far,
+                                        "firstDate": dates[0], "lastDate": dates[-1], "pointCount": len(points)}},
+    }
+
+
 class SnapshotValidationTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -87,6 +106,92 @@ class SnapshotValidationTest(unittest.TestCase):
         self.assertEqual(len(summary["verificationFiles"]), 5)
         self.assertEqual(summary["verificationFiles"]["spreads/BU.json"],
                          hashlib.sha256((self.root / "spreads/BU.json").read_bytes()).hexdigest())
+
+    def add_delivery_seasonality(self, chart=None, year=2026):
+        chart = copy.deepcopy(chart if chart is not None else delivery_seasonal_chart(year))
+        def mutate(payload):
+            for mode in ("raw", "adjusted"):
+                payload[mode].update(years=[year], specialSpreads=[copy.deepcopy(chart)])
+        self.mutate("spreads/BU.json", mutate)
+
+    def test_fixed_delivery_year_can_include_previous_trade_year_and_empty_year_choices(self):
+        chart = delivery_seasonal_chart()
+        chart["seriesByYear"]["2025"] = []
+        self.add_delivery_seasonality(chart)
+        self.mutate("spreads/BU.json", lambda p: [p[mode].update(years=[2025, 2026]) for mode in ("raw", "adjusted")])
+        contract.validate_snapshot(self.root)
+
+    def test_cross_year_pairs_and_three_digit_historical_codes_follow_delivery_year(self):
+        for year, near, far, short in ((2026, "09", "01", False), (2026, "10", "01", False),
+                                       (2006, "01", "05", True), (2009, "09", "01", True)):
+            with self.subTest(year=year, near=near, short=short):
+                self.add_delivery_seasonality(delivery_seasonal_chart(year, near, far, short_codes=short), year)
+                contract.validate_snapshot(self.root)
+
+    def test_fixed_seasonal_metadata_and_pairing_cannot_hide_rolling_or_missing_quotes(self):
+        cases = ("rolling", "wrong_year", "wrong_month", "wrong_instance", "wrong_first", "wrong_last", "wrong_count",
+                 "missing_metadata", "extra_metadata", "missing_price", "null_price", "bad_arithmetic", "bad_label",
+                 "future_point", "duplicate_point", "bad_basis", "bad_axis", "bad_offset", "boolean_offset", "bad_code")
+        for action in cases:
+            with self.subTest(action=action):
+                chart = delivery_seasonal_chart()
+                points, info = chart["seriesByYear"]["2026"], chart["seriesMetaByYear"]["2026"]
+                if action == "rolling":
+                    points[1].update(leg1="BU2701.SHF", instance="BU2701-BU2605")
+                elif action == "wrong_year":
+                    info["leg2"] = "BU2705.SHF"
+                elif action == "wrong_month":
+                    info["leg1"] = "BU2602.SHF"
+                elif action == "wrong_instance":
+                    info["instance"] = "BU2701-BU2705"
+                elif action in {"wrong_first", "wrong_last"}:
+                    info["firstDate" if action == "wrong_first" else "lastDate"] = "2025-01-01"
+                elif action == "wrong_count":
+                    info["pointCount"] = 2
+                elif action == "missing_metadata":
+                    chart["seriesMetaByYear"] = {}
+                elif action == "extra_metadata":
+                    chart["seriesMetaByYear"]["2027"] = copy.deepcopy(info)
+                elif action == "missing_price":
+                    points[0].pop("leg1Price")
+                elif action == "null_price":
+                    points[0]["leg1Price"] = None
+                elif action == "bad_arithmetic":
+                    points[0]["v"] = 11
+                elif action == "bad_label":
+                    points[0]["x"] = "01-01"
+                elif action == "future_point":
+                    points[-1]["d"] = "2026-10-09"
+                elif action == "duplicate_point":
+                    points.append(copy.deepcopy(points[-1]))
+                elif action == "bad_basis":
+                    chart["priceBasis"] = "adjusted_close"
+                elif action == "bad_axis":
+                    chart["seasonAxis"] = "trade-year"
+                elif action == "bad_offset":
+                    chart["farYearOffset"] = 1
+                elif action == "boolean_offset":
+                    chart["farYearOffset"] = False
+                else:
+                    chart["spreadCode"] = "BU_01_09"
+                self.add_delivery_seasonality(chart)
+                with self.assertRaises(contract.SnapshotValidationError):
+                    contract.validate_snapshot(self.root)
+
+    def test_empty_fixed_seasonal_template_requires_no_fictitious_latest_quote(self):
+        chart = delivery_seasonal_chart()
+        chart.update(seriesByYear={"2026": []}, seriesMetaByYear={}, latestDate="", latestInstance="")
+        self.add_delivery_seasonality(chart)
+        contract.validate_snapshot(self.root)
+        chart["latestDate"] = "2026-01-05"
+        self.add_delivery_seasonality(chart)
+        with self.assertRaises(contract.SnapshotValidationError):
+            contract.validate_snapshot(self.root)
+
+    def test_legacy_special_seasonality_is_still_compatible_without_fixed_metadata(self):
+        chart = {"spreadCode": "BU_01_05", "seriesByYear": {"2026": [{"d": "2026-01-05", "v": 10}]}}
+        self.add_delivery_seasonality(chart)
+        contract.validate_snapshot(self.root)
 
     def add_views(self):
         snapshot = json.loads((self.root / "snapshot.json").read_text())

@@ -22,21 +22,26 @@ def fetch_json(client, path: str):
 
 
 def compact_spreads(payload: dict, stride: int = 5) -> dict:
-    """Keep only special seasonal curves; fixed-contract curves replace legacy monthly spreads."""
+    """Keep special curves; fixed delivery pairs retain every common quote and leg."""
     special_spreads = payload.get("specialSpreads", [])
     for chart in special_spreads:
         compacted = {}
         for year, points in chart.get("seriesByYear", {}).items():
             sampled = []
             for index, point in enumerate(points):
-                if index % stride != 0 and index != len(points) - 1:
-                    continue
-                sampled.append({
-                    "x": point.get("x", ""),
-                    "d": point.get("d", ""),
-                    "v": point.get("v"),
-                    "instance": point.get("instance", ""),
-                })
+                if chart.get("seasonAxis") == "delivery-year":
+                    # Its first date and count describe the complete shared quote
+                    # history, not a rolling calendar-year/sampled approximation.
+                    sampled.append(dict(point))
+                else:
+                    if index % stride != 0 and index != len(points) - 1:
+                        continue
+                    sampled.append({
+                        "x": point.get("x", ""),
+                        "d": point.get("d", ""),
+                        "v": point.get("v"),
+                        "instance": point.get("instance", ""),
+                    })
             compacted[year] = sampled
         chart["seriesByYear"] = compacted
     payload["monthlySpreads"] = []

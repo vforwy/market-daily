@@ -96,6 +96,19 @@ export interface SpreadSeasonalChart {
   latestDate: string
   latestInstance: string
   seriesByYear: Record<string, SpreadSeasonalPoint[]>
+  seasonAxis?: 'delivery-year'
+  nearMonth?: string
+  farMonth?: string
+  farYearOffset?: 0 | 1
+  priceBasis?: 'raw_settle'
+  seriesMetaByYear?: Record<string, {
+    instance: string
+    leg1: string
+    leg2: string
+    firstDate: string
+    lastDate: string
+    pointCount: number
+  }>
 }
 
 export type SpreadPriceMode = 'raw' | 'adjusted'

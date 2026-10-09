@@ -168,6 +168,13 @@
   flex-shrink: 0;
 }
 
+.seasonNote {
+  padding: 0 12px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
 .chart {
   flex: 1;
   min-height: 0;

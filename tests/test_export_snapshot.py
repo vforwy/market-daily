@@ -1,4 +1,5 @@
 import importlib.util
+import copy
 import json
 import tempfile
 import unittest
@@ -96,6 +97,31 @@ class CompleteSnapshotClient:
 
 
 class ExportSnapshotTest(unittest.TestCase):
+    def test_delivery_seasonality_keeps_all_common_quotes_and_leg_metadata(self):
+        points = [{
+            "x": f"01-{day:02d}", "d": f"2025-01-{day:02d}", "v": 10,
+            "instance": "JD2601-JD2605", "leg1": "JD2601.DCE", "leg2": "JD2605.DCE",
+            "leg1Price": 100, "leg2Price": 90, "ratio": 100 / 90,
+        } for day in range(1, 13)]
+        info = {"instance": "JD2601-JD2605", "leg1": "JD2601.DCE", "leg2": "JD2605.DCE",
+                "firstDate": points[0]["d"], "lastDate": points[-1]["d"], "pointCount": len(points)}
+        chart = {"seasonAxis": "delivery-year", "seriesByYear": {"2026": points},
+                 "seriesMetaByYear": {"2026": info}}
+        payload = {"spreads": [copy.deepcopy(chart)], "monthlySpreads": [copy.deepcopy(chart)],
+                   "specialSpreads": [copy.deepcopy(chart)]}
+        exported = MODULE.compact_spreads(payload)
+        self.assertEqual(exported["specialSpreads"][0], chart)
+        self.assertEqual(exported["spreads"], [])
+        self.assertEqual(exported["monthlySpreads"], [])
+
+    def test_legacy_seasonality_keeps_its_existing_sampling_policy(self):
+        points = [{"x": f"01-{day:02d}", "d": f"2025-01-{day:02d}", "v": day,
+                   "instance": "JD2501-JD2505", "leg1": "JD2501.DCE"} for day in range(1, 13)]
+        exported = MODULE.compact_spreads({"specialSpreads": [{"seriesByYear": {"2025": points}}]})
+        actual = exported["specialSpreads"][0]["seriesByYear"]["2025"]
+        self.assertEqual([point["d"] for point in actual], [points[index]["d"] for index in (0, 5, 10, 11)])
+        self.assertNotIn("leg1", actual[0])
+
     def test_full_export_uses_validated_generation_and_reports_final_path(self):
         from test_snapshot_contract import make_snapshot
         from snapshot_contract import validate_snapshot
@@ -117,6 +143,26 @@ class ExportSnapshotTest(unittest.TestCase):
                                        "commodityConfig": snapshot["commodityConfig"]})
             self.assertEqual(json.loads((output.parent / "term-structure.json").read_text()),
                              {"meta": snapshot["meta"], "data": snapshot["termStructureMatrix"]})
+
+    def test_full_export_preserves_delivery_pair_history_in_both_legacy_price_mode_slots(self):
+        from test_snapshot_contract import delivery_seasonal_chart, make_snapshot, write_json
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / "source"
+            make_snapshot(source)
+            chart = delivery_seasonal_chart()
+            spread_path = source / "spreads/BU.json"
+            spreads = json.loads(spread_path.read_text())
+            for mode in ("raw", "adjusted"):
+                spreads[mode].update(years=[2026], specialSpreads=[copy.deepcopy(chart)])
+            write_json(spread_path, spreads)
+            output = root / "data/snapshot.json"
+            with patch.object(MODULE, "_source_client", return_value=CompleteSnapshotClient(source)):
+                MODULE.export_snapshot(root, output)
+            exported = json.loads((output.parent / "spreads/BU.json").read_text())
+            for mode in ("raw", "adjusted"):
+                self.assertEqual(exported[mode]["specialSpreads"], [chart])
 
     def test_full_export_detail_failure_preserves_former_tree(self):
         from test_snapshot_contract import make_snapshot, tree_bytes
