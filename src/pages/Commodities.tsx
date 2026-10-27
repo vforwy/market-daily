@@ -9,11 +9,13 @@ const KLinePanel = lazy(() => import('../components/KLinePanel/KLinePanel'))
 const TermStructureMatrix = lazy(() => import('../components/TermStructureMatrix/TermStructureMatrix'))
 const CrossSpreadMatrix = lazy(() => import('../components/CrossSpreadStructure/CrossSpreadMatrix'))
 const CrossSpreadDetail = lazy(() => import('../components/CrossSpreadStructure/CrossSpreadDetail'))
+const MonthSpreadOverview = lazy(() => import('../components/MonthSpreadOverview/MonthSpreadOverview'))
 
 const BASE_TABS: SubTabItem[] = [
   { id: 'charts', label: 'K线图' },
   { id: 'termStructure', label: '期限结构' },
   { id: 'crossSpread', label: '价差结构' },
+  { id: 'monthSpread', label: '月差结构' },
 ]
 
 interface DetailTab {
@@ -28,6 +30,7 @@ export default function Commodities() {
   const [activeTab, setActiveTab] = usePersistentState('fom:commodity-active-tab', 'charts')
   const [detailTabs, setDetailTabs] = usePersistentState<DetailTab[]>('fom:commodity-detail-tabs', [])
   const chartGridScrollPositionRef = useRef(0)
+  const monthSpreadScrollPositionRef = useRef(0)
 
   useEffect(() => {
     const validTabs = new Set([...BASE_TABS.map(tab => tab.id), ...detailTabs.map(tab => tab.id)])
@@ -97,6 +100,11 @@ export default function Commodities() {
         {activeTab === 'crossSpread' && (
           <Suspense fallback={<div className={styles.empty}>加载价差结构中...</div>}>
             <CrossSpreadMatrix onSelect={openCrossSpreadDetail} />
+          </Suspense>
+        )}
+        {activeTab === 'monthSpread' && (
+          <Suspense fallback={<div className={styles.empty}>加载月差结构中...</div>}>
+            <MonthSpreadOverview scrollPositionRef={monthSpreadScrollPositionRef} />
           </Suspense>
         )}
         {activeDetail && activeDetail.kind === 'crossSpread' && (
