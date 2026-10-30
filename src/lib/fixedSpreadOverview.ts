@@ -1,4 +1,21 @@
-import type { FixedContractSpreadChart } from '../api/index.ts'
+import type { CommodityConfigItem, FixedContractSpreadChart } from '../api/index.ts'
+
+export function fixedSpreadProducts(items: readonly CommodityConfigItem[]): CommodityConfigItem[] {
+  return items.filter(item => item.enabled).sort((a, b) => a.rowIndex - b.rowIndex)
+}
+
+export function fixedSpreadCategories(items: readonly CommodityConfigItem[]): string[] {
+  return ['全部', ...new Set(items.map(item => item.cate))]
+}
+
+/** Calendar spreads retain the exchange quotation unit of their two legs. */
+export function fixedSpreadPriceUnit(variety: string): string {
+  const units: Record<string, string> = {
+    EC: '点', SC: '元/桶', AU: '元/克', AG: '元/千克',
+    PT: '元/克', PD: '元/克', JD: '元/500千克',
+  }
+  return units[variety.toUpperCase()] ?? '元/吨'
+}
 
 export interface SpreadAxisBounds {
   min: number

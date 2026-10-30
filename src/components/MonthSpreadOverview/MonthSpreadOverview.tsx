@@ -3,18 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import { api, type CommodityConfigItem } from '../../api'
 import { usePersistentState } from '../../hooks/usePersistentState'
 import { MANUAL_REFRESH_STALE_TIME, MARKET_DATA_GC_TIME } from '../../lib/queryFreshness'
+import { fixedSpreadCategories, fixedSpreadPriceUnit, fixedSpreadProducts } from '../../lib/fixedSpreadOverview'
 import FixedSpreadPair from './FixedSpreadPair'
 import styles from './MonthSpreadOverview.module.css'
 
-const CATEGORIES = ['全部', '能源', '化工'] as const
 const WINDOWS = [
   { label: '全部', days: 0 },
   { label: '近半年', days: 180 },
   { label: '近三月', days: 90 },
   { label: '近一月', days: 30 },
 ]
-
-type Category = typeof CATEGORIES[number]
 
 interface ProductProps {
   item: CommodityConfigItem
@@ -52,7 +50,7 @@ function ProductSection({ item, days, resetVersion, scrollRoot }: ProductProps) 
     const charts = data?.charts ?? []
     return [charts.slice(0, 2), charts.slice(2, 4)].filter(pair => pair.length)
   }, [data])
-  const unit = item.code === 'EC' ? '点' : item.code === 'SC' ? '元/桶' : '元/吨'
+  const unit = fixedSpreadPriceUnit(item.code)
 
   return (
     <section
@@ -109,7 +107,7 @@ interface Props {
 
 export default function MonthSpreadOverview({ scrollPositionRef }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [category, setCategory] = usePersistentState<Category>('fom:month-spread-category', '全部')
+  const [category, setCategory] = usePersistentState('fom:month-spread-category', '全部')
   const [days, setDays] = usePersistentState('fom:month-spread-days', 0)
   const [search, setSearch] = usePersistentState('fom:month-spread-search', '')
   const [activeCode, setActiveCode] = useState('')
@@ -119,14 +117,14 @@ export default function MonthSpreadOverview({ scrollPositionRef }: Props) {
     queryFn: api.commodityConfig,
     staleTime: MANUAL_REFRESH_STALE_TIME,
   })
-  const products = useMemo(() => (config?.items ?? [])
-    .filter(item => item.enabled && (item.cate === '能源' || item.cate === '化工'))
-    .sort((a, b) => a.rowIndex - b.rowIndex), [config])
+  const products = useMemo(() => fixedSpreadProducts(config?.items ?? []), [config])
+  const categories = useMemo(() => fixedSpreadCategories(products), [products])
+  const selectedCategory = categories.includes(category) ? category : '全部'
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return products.filter(item => (category === '全部' || item.cate === category)
+    return products.filter(item => (selectedCategory === '全部' || item.cate === selectedCategory)
       && `${item.code} ${item.name} ${item.section}`.toLowerCase().includes(query))
-  }, [products, category, search])
+  }, [products, selectedCategory, search])
 
   useLayoutEffect(() => {
     if (!isPending && scrollRef.current) scrollRef.current.scrollTop = scrollPositionRef.current
@@ -148,10 +146,10 @@ export default function MonthSpreadOverview({ scrollPositionRef }: Props) {
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar} aria-label="月差品种导航">
-        <div className={styles.sidebarTitle}>能化品种</div>
+        <div className={styles.sidebarTitle}>品种导航</div>
         <div className={styles.sidebarMeta}>{products.length} 个品种 · 每品种四图</div>
         <nav className={styles.navigation}>
-          {CATEGORIES.slice(1).map(cate => {
+          {categories.slice(1).map(cate => {
             const items = visible.filter(item => item.cate === cate)
             if (!items.length) return null
             return (
@@ -180,20 +178,20 @@ export default function MonthSpreadOverview({ scrollPositionRef }: Props) {
       </aside>
       <div className={styles.main}>
         <div className={styles.toolbar}>
+          <div className={`${styles.segmented} ${styles.categories}`} role="group" aria-label="月差品种分类">
+            {categories.map(cate => (
+              <button
+                key={cate}
+                type="button"
+                aria-pressed={selectedCategory === cate}
+                className={selectedCategory === cate ? styles.selected : ''}
+                onClick={() => { setCategory(cate); resetScroll() }}
+              >
+                {cate}{cate !== '全部' && ` ${products.filter(item => item.cate === cate).length}`}
+              </button>
+            ))}
+          </div>
           <div className={styles.controls}>
-            <div className={styles.segmented} role="group" aria-label="月差品种分类">
-              {CATEGORIES.map(cate => (
-                <button
-                  key={cate}
-                  type="button"
-                  aria-pressed={category === cate}
-                  className={category === cate ? styles.selected : ''}
-                  onClick={() => { setCategory(cate); resetScroll() }}
-                >
-                  {cate}{cate !== '全部' && ` ${products.filter(item => item.cate === cate).length}`}
-                </button>
-              ))}
-            </div>
             <input
               className={styles.search}
               type="search"
