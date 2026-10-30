@@ -118,7 +118,7 @@ function chartOption(
       nameTextStyle: { color: '#777', fontSize: 9 },
       axisLine: { show: false }, axisTick: { show: false },
       axisLabel: { color: '#8f98a5', fontSize: 9, formatter: fmt },
-      splitLine: { lineStyle: { color: '#304353', type: 'dashed', opacity: 0.8 } },
+      splitLine: { lineStyle: { color: '#2f343a', type: 'dashed', opacity: 0.8 } },
     },
     dataZoom: [
       { type: 'inside', filterMode: 'none', ...zoom },
