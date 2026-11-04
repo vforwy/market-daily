@@ -9,3 +9,12 @@
   color: var(--text-secondary);
   text-align: center;
 }
+
+.holdingsPage {
+  position: fixed;
+  inset: var(--topbar-h) 0 0;
+}
+
+.holdingsPage > section {
+  height: 100%;
+}

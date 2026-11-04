@@ -1,5 +1,5 @@
 import * as echarts from 'echarts/core'
-import { CandlestickChart, BarChart, LineChart } from 'echarts/charts'
+import { CandlestickChart, BarChart, LineChart, CustomChart } from 'echarts/charts'
 import {
   GridComponent,
   TooltipComponent,
@@ -10,11 +10,13 @@ import {
   LegendComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { LabelLayout } from 'echarts/features'
 
 echarts.use([
   CandlestickChart,
   BarChart,
   LineChart,
+  CustomChart,
   GridComponent,
   TooltipComponent,
   DataZoomComponent,
@@ -23,6 +25,7 @@ echarts.use([
   TitleComponent,
   LegendComponent,
   CanvasRenderer,
+  LabelLayout,
 ])
 
 export { echarts }

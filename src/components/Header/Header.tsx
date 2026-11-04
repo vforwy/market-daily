@@ -6,8 +6,8 @@ export default function Header({
   activeTab,
   onTabChange,
 }: {
-  activeTab: 'commodities' | 'craps'
-  onTabChange: (tab: 'commodities' | 'craps') => void
+  activeTab: 'commodities' | 'holdings' | 'craps'
+  onTabChange: (tab: 'commodities' | 'holdings' | 'craps') => void
 }) {
   const { data } = useQuery({ queryKey: ['snapshotMeta'], queryFn: api.meta })
 
@@ -24,6 +24,13 @@ export default function Header({
           onClick={() => onTabChange('commodities')}
         >
           商品
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'holdings' ? styles.navActive : ''}
+          onClick={() => onTabChange('holdings')}
+        >
+          持仓
         </button>
         <button
           type="button"

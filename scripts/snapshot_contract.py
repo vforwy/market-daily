@@ -18,6 +18,19 @@ import shutil
 import tempfile
 from typing import Callable
 import uuid
+import importlib.util
+
+
+def _validate_holdings_archive(*args):
+    # The orchestrator loads this contract by file path, outside this directory's
+    # sys.path. Resolve its companion from this checkout, never a cached sibling.
+    path = Path(__file__).with_name("holding_snapshot.py")
+    spec = importlib.util.spec_from_file_location("_holding_public_contract", path)
+    if spec is None or spec.loader is None:
+        raise ValueError("holdings validator is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.validate_holdings(*args)
 
 
 class SnapshotValidationError(ValueError):
@@ -353,6 +366,12 @@ def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
     matrix = _object(snapshot.get("termStructureMatrix"), "termStructureMatrix")
     _term_matrix(matrix, varieties, latest)
     view_files = _validate_views(data_dir, snapshot)
+    holding_report = None
+    if "holdings" in snapshot:
+        try:
+            holding_report = _validate_holdings_archive(data_dir / "holdings", snapshot["holdings"], varieties, latest)
+        except (ValueError, KeyError, TypeError, OSError) as error:
+            raise SnapshotValidationError(f"invalid holdings archive: {error}") from error
 
     contracts = bars = fixed_charts = historical_charts = 0
     for variety in varieties:
@@ -427,10 +446,13 @@ def validate_snapshot(data_dir: Path, expected_date: str | None = None) -> dict:
     variety = "BU" if "BU" in varieties else sorted(varieties)[0]
     sample = ["snapshot.json", f"spreads/{variety}.json", f"klines/{variety}.json",
               "cross-spreads/overview.json", f"cross-spreads/{sorted(codes)[0]}.json", *view_files]
+    if holding_report:
+        sample.extend(holding_report["verificationFiles"])
     hashes = {relative: hashlib.sha256((data_dir / relative).read_bytes()).hexdigest() for relative in sample}
     return {"latestDate": latest, "generatedAt": meta["generatedAt"], "varieties": len(varieties),
             "contracts": contracts, "bars": bars, "crossSpreads": len(codes),
-            "fixedCharts": fixed_charts, "historicalCharts": historical_charts, "verificationFiles": hashes}
+            "fixedCharts": fixed_charts, "historicalCharts": historical_charts, "verificationFiles": hashes,
+            **({"holdings": {k: v for k, v in holding_report.items() if k != "verificationFiles"}} if holding_report else {})}
 
 
 def _destination(data_dir: Path) -> Path:

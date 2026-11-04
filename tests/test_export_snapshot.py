@@ -99,6 +99,12 @@ class CompleteSnapshotClient:
 
 
 class ExportSnapshotTest(unittest.TestCase):
+    def setUp(self):
+        from holding_fixture import make_holdings
+        stub = patch.object(MODULE, 'export_holdings', side_effect=make_holdings)
+        stub.start()
+        self.addCleanup(stub.stop)
+
     def test_delivery_seasonality_keeps_all_common_quotes_and_leg_metadata(self):
         points = [{
             "x": f"01-{day:02d}", "d": f"2025-01-{day:02d}", "v": 10,

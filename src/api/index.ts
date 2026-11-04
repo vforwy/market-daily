@@ -1,5 +1,6 @@
 import { RetryablePromiseCache } from '../lib/retryablePromiseCache'
 import { createStaticSnapshotAdapter } from './staticSnapshotAdapter'
+import { createStaticHoldingsAdapter } from './staticHoldingsAdapter'
 
 export interface Bar {
   d: string
@@ -75,6 +76,84 @@ export interface TermStructureSingle {
   latestDate: string
   days: number
   chart: TermStructureChart | null
+}
+
+export interface HoldingSeatPoint {
+  code: string
+  longSum: Array<number | null>
+  shortSum: Array<number | null>
+  ratio: Array<number | null>
+}
+
+export interface HoldingSeatMember {
+  broker: string
+  seatGroup: string | null
+  seatLabel: string | null
+  net: Array<number | null>
+  contractLong: Array<number | null>
+  contractShort: Array<number | null>
+  longRank: Array<number | null>
+  shortRank: Array<number | null>
+}
+
+export interface HoldingSeatBoard {
+  variety: string
+  varietyName: string
+  topN: number
+  policyVersion: string | null
+  latestHoldingDate: string | null
+  latestPriceDate: string | null
+  missingHoldingDates: string[]
+  metadata: { computedAt?: string | null; sourceDates?: { tushare?: string | null; sina?: string | null } }
+  dates: string[]
+  dominant: Array<string | null>
+  ohlc: Array<[number, number, number, number] | null>
+  combined: {
+    longSum: Array<number | null>
+    shortSum: Array<number | null>
+    ratio: Array<number | null>
+  }
+  contracts: HoldingSeatPoint[]
+  seats: HoldingSeatMember[]
+}
+
+export interface HoldingSeatChangeRow {
+  broker: string
+  seatGroup: string | null
+  seatLabel: string | null
+  rank: number | null
+  previousRank: number | null
+  rankDelta: number | null
+  net: number
+  previousNet: number
+  delta: number
+  event: 'entry' | 'exit' | 'stay' | 'outside'
+  sideChanged: boolean
+}
+
+export interface HoldingSeatChanges {
+  variety: string
+  varietyName: string
+  date: string
+  previousDate: string | null
+  topN: number
+  side: 'long' | 'short'
+  scopeCode: string
+  ready: boolean
+  entryCount?: number
+  exitCount?: number
+  sameContracts?: boolean
+  rows: HoldingSeatChangeRow[]
+}
+
+export interface HoldingSeatRankHistory {
+  variety: string
+  scopeCode: string
+  side: 'long' | 'short'
+  startDate: string
+  endDate: string
+  dates: string[]
+  seats: Array<{ broker: string; ranks: Array<number | null> }>
 }
 
 export interface SpreadSeasonalPoint {
@@ -236,6 +315,7 @@ interface StaticVarietyKlines extends KLineOptionsResponse {
 }
 
 const snapshotAdapter = createStaticSnapshotAdapter(import.meta.env.BASE_URL)
+const holdingsAdapter = createStaticHoldingsAdapter(import.meta.env.BASE_URL)
 const spreadPromises = new RetryablePromiseCache<string, StaticSpreadPayload>()
 const klinePromises = new RetryablePromiseCache<string, StaticVarietyKlines>()
 const crossSpreadOverviewPromises = new RetryablePromiseCache<string, CrossSpreadOverviewResponse>()
@@ -290,6 +370,7 @@ function varietyFromCode(code: string): string {
 }
 
 export const api = {
+  ...holdingsAdapter,
   meta: snapshotAdapter.meta,
   commodityConfig: snapshotAdapter.commodityConfig,
   termStructureMatrix: snapshotAdapter.termStructureMatrix,

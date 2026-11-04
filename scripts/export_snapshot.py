@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from snapshot_contract import SnapshotValidationError, publish_snapshot, snapshot_view_payloads
+from holding_snapshot import export_holdings
 
 
 def fetch_json(client, path: str):
@@ -208,6 +209,7 @@ def _generate_snapshot(client, output: Path) -> dict:
     kline_report = export_klines(client, output.parent / "klines", varieties)
     spread_report = export_spreads(client, output.parent / "spreads", varieties)
     cross_spread_report = export_cross_spreads(client, output.parent / "cross-spreads")
+    holding_report = export_holdings(output.parent / "holdings", varieties, term_matrix["latestDate"])
 
     generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
     payload = {
@@ -221,6 +223,7 @@ def _generate_snapshot(client, output: Path) -> dict:
             "dominant_continuous": continuous_batch,
         },
         "termStructureMatrix": term_matrix,
+        "holdings": {key: holding_report[key] for key in ("formatVersion", "latestDate", "varieties")},
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -233,6 +236,7 @@ def _generate_snapshot(client, output: Path) -> dict:
             + cross_spread_report["bytes"]
             + kline_report["bytes"]
             + view_report["bytes"]
+            + holding_report["bytes"]
         ),
         "latestDate": payload["meta"]["latestDate"],
         "varieties": len(varieties),
@@ -240,6 +244,7 @@ def _generate_snapshot(client, output: Path) -> dict:
         "spreads": spread_report,
         "crossSpreads": cross_spread_report,
         "views": view_report,
+        "holdings": holding_report,
     }
 
 
